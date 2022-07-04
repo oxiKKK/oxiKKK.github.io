@@ -1,0 +1,157 @@
+<html>
+
+<head>
+	<link rel="stylesheet" href="../style.css">
+
+	<title></title>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../about.html">About</a>
+		<a href="../index.html" style="float:right;">Index</a>
+	</div>
+
+	<div class="MiddleRow">
+		<h1>x87 FPU</h1>
+	
+		<hr></hr>
+
+		<h2>FPU</h2>
+
+		<p>The <i>floating-point-unit</i> is a separate module located inside the main CPU that is designed to work with floating-point numbers. The unit has it's own <i>program counter</i>, that's why it can perform computations in parralel to the main CPU unit.</p>
+
+		<p>The processing unit is designed to perfrom operations such as <i>addition, subtraction, multiplication, division, square root</i> and many more. Some FPUs are capable of doing advanced computations such as <i>trigonometric functions</i> or <i>transcedental functions</i>.</p>
+		
+		<h2>Register set</h2>
+		
+		<p>x87 is composed out of eight data registers (<i>r0-7 or x87r0-7</i>) and other special-use registers. (<i>status word, control word, tag word, program counter, last data (operand) pointer and opcode register</i>).</p>
+
+		<center><img src="resources/FPU_register_model.svg" style="max-width: 90%;max-height: 90%"></img></center>
+		
+		<h2>Data registers</h2>
+		
+		<p>x87 provides 80-bit <i>single-precision, double-precision <i>and</i> extended precision</i>. The user can chose between each mode as needed. For example, the extented precision model requiers more computation time, but gives higher quality results. The single precision model requiers less computation time, however it has limited quality.</p>
+		
+		<center><img src="resources/FPU_data_registers.svg" style="max-width: 90%;max-height: 90%"></img></center>
+		
+		<p>When a value is loaded into the register, it is automatically converted into the floating-point format (only if it isn't already in that format).</p>
+		
+		<h3>Data types</h3>
+
+		<p>Types in which data registers can operate in consists of, least-significant sign bit, an exponent which in single and double precision format also contains an integer part, and a fraction part which is usually the biggest. The registers are 80-bits total in side, however the single-precision model only covers up first 32-bits, and the other bits are untouched. Same with the double-precision model.</p>
+
+		<p>The targeted precision is selected through <i>precision-control (PC)</i> bits inside the control word (bits 8 and 9).</p>
+
+		<br>
+
+		<center><img src="resources/Data_types.svg" style="max-width: 90%;max-height: 90%"></img></center>
+		
+		<h2>Data register stack</h2>
+		
+		<p>The FPU treat eight data registers as a register stack (<i>ST0 - ST7</i>). The register that is on the top of the stack is indicated inside the <i>TOP</i> 3-bit field status word. The register stack grows downwards. Load operations decrement the stack by one, load values into the new top-stack register. Store operations store the value from the current TOP register in memory and then increment TOP by one. The FPU load operation is equivalent to <i>x86 push</i>, and store operation to <i>x86 pop</i>.</p>
+		
+		<center><img src="resources/FPU_Data_register_stack.svg" style="max-width: 100%;height: 40%"></img></center>
+
+		<h2>Control word</h2>
+		
+		<p><i>Control word</i> is a bit field that contains flags such as <i>precision mode</i>, <i>rounding method</i>, <i>exception mask bits</i> and so on. The contents of the reghister can be loaded with the <i>FLDCW</i> instruction and stored in memory with the <i>FSTCW</i> instruction.</p>
+		
+		<p>When the FPU is initialized with the instruction <i>FINIT</i>, then the <i>control word</i> is set to <i>0x37F</i> by default. In this mode the floating-point exceptions are masked, the rounding is set to nearest and the precision to 64-bits (<i>double-precision</i>).</p>
+		
+		<center><img src="resources/FPU_Control_register.svg" style="width: 120%; height: 40%;"></img></center>
+
+		<h3>Rounding control</h3>
+
+		<p>The <i>rounding control (RC)</i> field (bits 10 & 11) controls how the results of arithmetic operations are rounded. </p>
+
+		<table>
+			<tr>
+				<th class="center"><b>Mode</b></th>
+				<th class="center"><b>Value</b></th>
+				<th class="center"><b>Description</b></th>
+			</tr>
+			<tr>
+				<th class="center"><b>Round to nearest</b></th>
+				<th class="center"><i>0b00</i></th>
+				<th>Rounded value is the closest to infinitely precise result. If the two values are equally close, then the even result is picked up (i.e. one with the least-significant bit set to zero). This option is set by default.</th>
+			</tr>
+			<tr>
+				<th class="center"><b>Round down towards -inf</b></th>
+				<th class="center"><i>0b01</i></th>
+				<th>The result is the one closest downwards -inf.</th>
+			</tr>
+			<tr>
+				<th class="center"><b>Round up towards inf</b></th>
+				<th class="center"><i>0b10</i></th>
+				<th>Rounded result is the one closest towards inf.</th>
+			</tr>
+			<tr>
+				<th class="center"><b>Round toward zero</b></th>
+				<th class="center"><i>0b11</i></th>
+				<th>Rounded result is the one closest to absolute zero.</th>
+			</tr>
+		</table>
+
+		<h3>Precision control</h3>
+
+		<p>The <i>precision control (PC)</i> field (bits 8 & 9) determines the precision model.</p>
+
+		<table>
+			<tr>
+				<th><b>Precision Model</b></th>
+				<th class="center"><b>Value</b></th>
+			</tr>
+			<tr>
+				<th>Single-precision</th>
+				<th class="center"><i>0b00</i></th>
+			</tr>
+			<tr>
+				<th>Unused</th>
+				<th class="center"><i>0b01</i></th>
+			</tr>
+			<tr>
+				<th>Double-precision</th>
+				<th class="center"><i>0b10</i></th>
+			</tr>
+			<tr>
+				<th>Double-extented-precision</th>
+				<th class="center"><i>0b11</i></th>
+			</tr>
+		</table>
+
+		<h3>Exception flags</h3>
+		
+		<p><i>Exception flags</i> specify the fault when performing arithmetic operations on floating-point values.</p>
+		
+		<h2>Status word</h2>
+		
+		<p>The <i>status register</i> indicates the current state of the FPU. The FPU sets the flags in this register to show the results of operations.</p>
+		
+		<center><img src="resources/FPU_Status_register.svg" style="width: 120%;height: 40%"></img></center>
+		
+		<h3>Condition code</h3>
+
+		<p>The four condition flags (<i>C0 through C3</i>) indicate the results of floating-point comparison and arithmetic operations.</p>
+
+		<h3>Top of stack (top) pointer</h3>
+
+		<p>A pointer to the data register that is currently at the top of the x87 register stack. Holds value from <i>0 to 7</i></p>
+
+		<h3>Exception flags</h3>
+
+		<p><i>Exception flags</i> specifies that one or more floating-point exceptions have been detected since the bits were last cleared.</p>
+
+		<h2>Tag word</h2>
+		
+		<p>Each register has a separate 2-bit flag <i>tag word</i> register called <i>x87TagWord</i> that indicates three states. If the value is valid, (<i>0b00</i>) zero, special (inf, NaN, unsupported) or empty (<i>0b11</i>). These eight two-bit registers together make a 16-bit <i>tag word</i>. Registers are called <i>x87_TW_X</i> where X is a 0-7 value.</p>
+
+		<p>When the FPU is initialized using <i>FINIT</i>, the <i>tag word</i> is set to <i>0xFFFF</i>, which sets the status for every register to <i>empty</i> respectively.</p>
+		
+		<footer>
+			<hr>Copyright (c) 2022 Daniel Gavlas</hr>
+		</footer>	
+	</div>
+</body>
+
+</html>

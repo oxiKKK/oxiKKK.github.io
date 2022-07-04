@@ -1,0 +1,152 @@
+<html>
+
+<head>
+	<link rel="stylesheet" href="../style.css">
+
+	<title>x86 Registers</title>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../about.html">About</a>
+		<a href="../index.html" style="float:right;">Index</a>
+	</div>
+
+	<div class="MiddleRow">
+		<h1>x86 Registers</h1>
+
+		<hr></hr>
+
+		<p>A register is a quickly accessible memory region reserved for fast read-write operations for the processor while performing instructions. Some registers may have purpose of fast-access variables, while others may have specific hardware functions, may be read-only/write-only, etc.</p>
+
+		<h2>GPR (General Purpose Registers)</h2>
+
+		<p>These are registers that are used most frequently. The processor uses them to store values, addresses, syscall indexes or function parameters when calling a function. Size of these register differs on processor architecture. Following are the GPR for 32-bit architecture:</p>
+
+<code>EAX - <i>Accumulator register</i>
+EBX - <i>Base register</i>
+ECX - <i>Counter register</i>
+EDX - <i>Data register</i></code>
+
+		<p>As you may already know, on a 32-bit architecture, these registers are equivalent to 4-byte (32-bit) C integers, meaning they can be treated the same way. These 32-bit registers can be then each divided into 16-bit registers.</p>
+
+<code>AX BX CX DX</code>
+		
+		<p>As you can see, the only difference is that the letter <i>E</i> is missing. Same abbreviation changes are made to the 64-bit architecture GPRs.</p>
+
+		<p>Third division may also happen on by dividing these 16-bit registers into 8-bit parts. Changes in the naming are made by changing the suffix <i>X</i> to either <i>L</i>, refering to the lower four bits of the register, or <i>H</i>, refering to the higher four bits.</p>
+
+<code>AH AL, BH BL, CH CL, DH DL</code>
+
+		<h2>Index registers</h2>
+
+		<p>Registers used as indexes for example with string operations.</p>
+
+<code>EDI - <i>Destinaion index</i>
+ESI - <i>Source index</i></code>
+
+		<h2>Instruction pointer</h2>
+
+		<p>Also known as <i>program counter</i>, is a register that holds a pointer to address of current instruction being executed by the processor. Explicitly called <i>program counter</i>, because processor executes instructions in a sequence, one by one, so the <i>EIP</i> register basically increments itself, unless there's a jump to another program location or a function call.</p>
+
+<code>EIP</code>
+
+		<h2>Stack registers</h2>
+
+		<p>Registers that are taking care of the stack. So called <i>stack frame</i> is basically a set of data that informs about the stack being used throughout each function call. Basically, when a function is called, a new stack is created. The stack contains all temporary variables, function call arguments or return addresses. However, when the function calls another function, another stack has to be created, and so on. The data stored about each's function stack is called a stack frame.</p>
+
+		<p>Using a <i>stack frame</i> we can also trace down the function call history. There comes the two registers, <i>ESP</i> and <i>EBP</i>. When a new function is created, the function saves the old base pointer for current <i>stack frame</i>, also called <i>frame pointer</i>, updates the old base pointer to the top of the stack and subtracts N bytes from the stack, depending on the stack size used within the function. The amount of bytes substracted is hardcoded by the compiler. Eventually if the function returns, the old base pointer is set to the saved one. If this seems complicated to you, I'll demonstrate in a minute.</p>
+
+<code>; first function to be called
+func:
+ push ebp     ; saves the old base pointer. (also called frame pointer)
+ mov ebp, esp ; update the old base pointer to point to the top of the stack.
+ sub esp, 8   ; subtracts 8 bytes out of the stack pointer. (8 byte variable or two 4 bytes variables)
+ ...
+ mov esp, ebp ; restore the old stack frame
+ pop ebp      ; remove from the stack
+</code>
+
+		<h2>EFLAGS register</h2>
+
+		<p>This register alone act as a bit field holding many processor states, each being one or two bits in size. It is modified by many instructions and each bit represents some imaginatory flag to inform the processor about current computing state. Some of the flags are for example <i>zero flag</i>, which is set when dividing by zero or <i>interrupt enable</i> which enables interrupts for the processor.</p>
+
+		<table>
+			<tr>
+				<th class="center">Bit</th>
+				<th class="center">Abbreviation</th>
+				<th class="center">Description</th>
+			</tr>
+			<tr>
+				<th class="center">0</th>
+				<th class="center">CF</th>
+				<th><b>Carry flag</b>. Set when an <i>arithmetic carry</i> or <i>borrow</i> has been generated out of the <i>most significant arithmetic logic unit (ALU)</i>> bit position.</th>
+			</tr>
+			<tr>
+				<th class="center">2</th>
+				<th class="center">PF</th>
+				<th><b>Parity flag</b>. Indicates if the numbers of set bits is odd or even in the binary representation of the result of the last operation.</th>
+			</tr>
+			<tr>
+				<th class="center">4</th>
+				<th class="center">AF</th>
+				<th><b>Auxilliary/Adjust flag</b>. Set when an <i>arithmetic carry</i> or <i>borrow</i> has been generated out of bit 3 of the result. This flag is used in <i>binary-coded decimal (BDC)</i> arithmetic.</th>
+			</tr>
+			<tr>
+				<th class="center">6</th>
+				<th class="center">ZF</th>
+				<th><b>Zero flag</b>. Set if the result of last arithmetic operation was zero.</th>
+			</tr>
+			<tr>
+				<th class="center">7</th>
+				<th class="center">SF</th>
+				<th><b>Sign flag</b>. Set equal to the most significant bit of an integer, indicating if it's a <i>signed</i> or <i>unsigned</i> type, from the last mathematical operation.</th>
+			</tr>
+			<tr>
+				<th class="center">8</th>
+				<th class="center">TF</th>
+				<th><b>Trap</b>. This flag enables processor to perform <i>single-step</i> operations. That is, when debugging a process.</th>
+			</tr>
+			<tr>
+				<th class="center">9</th>
+				<th class="center">IF</th>
+				<th><b>Interrupt flag</b>. Enables processor interrupts. If enable, processor will instaneosly react to <i>maskable hardware interrupts</i></th>
+			</tr>
+			<tr>
+				<th class="center">10</th>
+				<th class="center">DF</th>
+				<th><b>Direction flag</b>. Controls the <i>left-to-right</i> or <i>right-to-left</i> direction of string processing.</th>
+			</tr>
+			<tr>
+				<th class="center">11</th>
+				<th class="center">OF</th>
+				<th><b>Overflow flag</b>. Indicates whenether last arithmetic operation resulted in an overflow.</th>
+			</tr>
+			<tr>
+				<th class="center">12-13</th>
+				<th class="center">OIPL</th>
+				<th><b>I/O privilege flag</b>. Indicates whenether the current instruction executed by the processor is in <i>privilege ring 0/1/2/3</i>.</th>
+			</tr>
+		</table>
+
+		<h2>Segment registers</h2>
+
+		<p><b>Memory segmentation</b> is an implementation of dividing memory space of a program to specific segments. These segments are usually either <i>code segment</i>, <i>data segment</i>, <i>stack segment</i> or additional segment registers such as <i>far pointers</i>, etc... </p>
+
+<code>CS - <i>Holds a pointer to code segment where the program execute instructions.</i>
+
+DS - <i>Holds a pointer to data segment where the program stores data.</i>
+
+ES, FS, GS - <i>Extra segment registers. Usually used as far pointers pointing to memory regions such as video memory and such.</i>
+
+SS - <i>Holds a pointer to stack segment.</i>
+</code>
+
+	<footer>
+		<hr><i>Copyright (c) 2022 Daniel Gavlas</i></hr>
+	</footer>
+		
+	</div>
+</body>
+
+</html>

@@ -1,0 +1,126 @@
+<html>
+
+<head>
+	<link rel="stylesheet" href="../style.css">
+
+	<title>x86 Calling conventions</title>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../about.html">About</a>
+		<a href="../index.html" style="float:right;">Index</a>
+	</div>
+
+	<div class="MiddleRow">
+		<h1>x86 Calling Conventions</h1>
+
+		<hr></hr>
+
+		<p>A calling convention is a way to maintain function calls in assembly. To be more accurate, way of maitaining function arguments. Since function calls aren't a built-in thing in assembly, we have to work what we have available.</p>
+
+		<p>Some of the <i>calling conventions</i> may push the arguments on the stack, while others may save them into registers, or a combination of these two. Different ways of maitaining function arguments are disscussed in this article.</p>
+
+		<h2>In what each calling convention may differ</h2>
+		<li>How are arguments being passed into the function.</li>
+		<li>Who cleans up the stack.</li>
+		<li>How is the return value stored.</li>
+		<li>Function name mangling</li>
+
+		<h2>Caller vs Callee</h2>
+		<p>A <i>caller</i> is routine that call subroutine. (e.g. <i>main</i> calls <i>printf)</i></p>
+		<p>A <i>callee</i> is subroutine that was called by another routine. (e.g. <i>printf</i> is being called by <i>main)</i></p>
+
+		<h2>__cdecl (C declaration)</h2>
+
+		<p>Also called <i>The default calling convention</i> is a default calling convention used within the C language.
+		Arguments are being pushed on the stack from right to left. The return value is stoed at register
+		<i>EAX</i> for integer values, for floating point values in <i>ST0</i> registers. Registers <i>EAX</i>,
+		<i>ECX</i> and <i>EDX</i> are caller-saved. The rest are callee-saved. The caller is responsible for
+		cleaning up the stack after the call.</p>
+			
+		<p>Functions declared with <i>__cdecl</i> have an additional prefix
+		added to their name. <i>'_'</i>. (<i>_func</i>)</p>
+
+<code>caller:
+ push ebp	; save old call frame
+ mov ebp, esp	; init new call frame
+ 
+ push 3		; basically mov [ebp-4h], 3
+ push 2		; basically mov [ebp-8h], 2
+ push 1		; basically mov [ebp-Ch], 1
+ call callee
+ 		; some compilers may refer to this as 'leave' instruction.
+ add esp, Ch	; remove call arguments from the stack
+ mov esp, ebp	; restore the old stack frame. 
+  
+ pop ebp	
+ ret</code>
+
+		<h2>__stdcall (Standard calling convention)</h2>
+
+		<p>Standard calling convention is almost the same as <i>__cdecl</i>, except arguments are being pushed from left to right and the stack is cleaned up by callee instead of caller. Thias calling convention is used is Win32 API routines.</p>
+
+		<p>The name of the functions has same prefix as <i>__cdecl</i>, except it also contains a postfix <i>'@'</i>, followed by a number of bytes (in decimal) representing the size of function arguments. (<i>_func@8</i>)</p>
+
+		<h2>__fastcall (Microsoft calling convention)</h2>
+
+		<p>First two arguments are evaluated from right to left into <i>ECX</i> and <i>EDX</i>. Remaining arguments are pushed onto the stack from right to left. The stack is cleaned up by callee.</p>
+
+		<p>Functions declared with <i>__fastcall</i> calling convention are decorated with a prefix <i>'@'</i> followed by a number of bytes (in decimal) representing the size of function arguments.</p>
+
+<code>caller:
+ push ebp
+ mov ebp, esp
+ push 3
+ mov edx, 2	; the first two arguments stored in EDX and ECX
+ mov ecx, 1
+ call callee
+ pop ebp	; the stack is cleaned up by the callee
+ ret</code>
+
+	<h2>__thiscall (Using 'this' keyword)</h2>
+
+		<p>It's used within C++ non-static member functions. Because this convention isn't part of the standard, the implementation may differ on different compilers. There are two main implementations in GCC and MSVC.</p>
+		<b>GCC</b>
+		<li> Almost identical to cdecl. The caller cleans up the stack, parameters are passed from right to left. The difference is the <i>'this'</i> pointer being passed last, as the first parameter of the function.</li><br>
+		<b>MSVC</b>
+		<li> The 'this' pointer is being passed in <i>ECX</i> and the callee cleans up the stack, mirroring the <i>__stdcall</i>. If the function has a variable amount of arguments, it's the caller that cleans up the stack.</li><br>
+
+<code>; GCC
+caller:
+ push ebp
+ mov ebp, esp
+ 
+ push 3
+ push 2
+ push this	; this pushed onto the stack
+ call callee
+ 
+ add esp, Ch
+ mov esp, ebp
+ 
+ pop ebp
+ ret
+ 
+ ; MSVC
+caller:
+ push ebp
+ mov ebp, esp
+ 
+ mov ecx, this
+ push 2
+ push 3		; this pushed onto the stack
+ call callee
+ 
+ pop ebp	; callee cleans up the stack
+ ret </code>
+ 	
+ 	<footer>
+		<hr><i>Copyright (c) 2022 Daniel Gavlas</i></hr>
+	</footer>
+
+	</div>
+</body>
+
+</html>

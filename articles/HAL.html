@@ -1,0 +1,36 @@
+<html>
+
+<head>
+	<link rel="stylesheet" href="../style.css">
+
+	<title>HAL (Hardware Abstraction Layer)</title>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../about.html">About</a>
+		<a href="../index.html" style="float:right;">Index</a>
+	</div>
+
+	<div class="MiddleRow">
+		<h1>HAL</h1>
+
+		<hr>
+		</hr>
+
+		<p><i>Hardware Abstraction Layer</i> is a set of routines that allow users to communicate straight with the hardware. It provides a set of routines and APIs, which are machine-dependent and thus the user don't have to worry about compalitity.</p>
+
+		<center><img src="resources/HAL.svg" style="max-width: 90%;max-height: 90%"></img></center>
+
+		<p>The <i>HAL</i> is compiled for each different architectures and multiple instruction sets. That's the reason why it allows for the OS to be ran on multiple architectures without any changes being made to the kernel code. This means, that when the OS requests a communication straight with hardware, it uses routines from <i>HAL</i> in order to make it happen.</p>
+
+		<p><i>HAL</i> really comes handy when developing driver for some device. The driver manufactor don't have to worry about developing software compatible for thousands different architectures, because the <i>HAL</i> is already developed for that. And so it can use easily the <i>HAL</i> to do HW communication.</p>
+
+		<footer>
+			<hr><i>Copyright (c) 2022 Daniel Gavlas</i></hr>
+		</footer>
+
+	</div>
+</body>
+
+</html>

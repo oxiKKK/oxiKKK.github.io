@@ -1,0 +1,38 @@
+<html>
+
+<head>
+	<link rel="stylesheet" href="../style.css">
+
+	<title></title>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../about.html">About</a>
+		<a href="../index.html" style="float:right;">Index</a>
+	</div>
+
+	<div class="MiddleRow">
+		<h1>x86 Advanced Registers</h1>
+
+		<hr></hr>
+
+		<p>Modern CPU architecture consists of dozens of registers and register sets, each having it's own important puprose. I'd say that a big majority of registers that modern architecture have isn't even documented, and unless they're documented officially by the manufacturer, it is very hard or sometimes impossible to debug or analyze these registers even for the best-skilled reverseengineers.</p>
+
+		<p>In this short article I'd like to cover some of the most used and best documented registers that serve very important role in today's modern computing. </p>
+
+		<h2>SIMD</h2>
+
+		<p><i>Single instruction, multiple data</i> is a type of parralel processing that supports parralel computation. The computation is divided into different units, each performing the exact same task. This can greatly improve performace, especially when doing the same computation for many different objects.</p>
+
+		<p>The classic example of this type of computing would be changing the brightness of a monitor, where every RGB value of every pixel has to be incremented by some same amount. Other typical applications are sound or image encoding, graphics processing or signal processing.</p>
+
+		<center><img src="resources/SIMD.svg" style="max-width: 65%;max-height: 65%"></img></center>
+		
+		<footer>
+			<hr>Copyright (c) 2022 Daniel Gavlas</hr>
+		</footer>	
+	</div>
+</body>
+
+</html>

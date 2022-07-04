@@ -1,0 +1,76 @@
+body {
+	margin: 0px;
+	padding: 0px;
+}
+
+.TopRow {
+	overflow: hidden;
+	position: fixed;
+	background-color: #eeeeee;
+	width: 100%;
+	border-bottom: solid grey 1px;
+}
+
+.TopRow a {
+	float: left;
+	color: black;
+	padding: 10px 30px;
+	text-decoration: none;
+	font-size: 20px;
+}
+
+.TopRow a:hover {
+	background-color: #d1d1d1;
+}
+
+.MiddleRow {
+	margin: auto;
+	max-width: 50em;
+	padding: 16px;
+	overflow-x: hidden;
+	word-wrap: break-word;
+	background-color: #eeeeee;
+	box-sizing: border-box; /* Disables horizontal scrollbar when width set to 100%*/
+}
+
+/*Used as article title*/
+h1 {
+	padding-top: 16px;
+	text-align: center;
+}
+
+code {
+	padding-right: 16px;
+	padding-left: 16px;
+	padding-top: 10px;
+	padding-bottom: 10px;
+	white-space: pre-wrap;
+	background-color: #dfdfdf;
+	display: block;
+	font-family: monospace;
+	word-wrap: break-word;
+}
+
+footer {
+	text-align: center;
+}
+
+th.center {
+	text-align: center;
+	white-space: nowrap;
+}
+
+table {
+	margin-left: auto;
+	margin-right: auto;
+}
+
+th {
+	font-weight: normal;
+	text-align: left;
+}
+
+img {
+	max-width: 80%;
+	max-height: 80%;
+}

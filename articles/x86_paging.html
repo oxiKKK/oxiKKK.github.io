@@ -1,0 +1,44 @@
+<html>
+
+<head>
+	<link rel="stylesheet" href="../style.css">
+
+	<title>x86 paging</title>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../about.html">About</a>
+		<a href="../index.html" style="float:right;">Index</a>
+	</div>
+
+	<div class="MiddleRow">
+		<h1>x86 paging</h1>
+
+		<hr></hr>
+
+		<h2>Introduction</h2>
+
+		<p>Paging is a memory translation process, where logical (also virtual) addresses are translated to linear (physical) addresses done by the MMU (Memory Management Unit). The translation is done on every virtual address when accessed from the memory (RAM). The virtual memory is divided into equal-size blocks called pages. Each of these blocks has different access rights, for example read-only, read-write, etc. </p>
+
+		<h2>MMU (Memory management unit)</h2>
+
+		<p>It is a piece of hardware that is responsible for translating virtual addresses into physical addresses. At the same time it handles memory protection of accessed address.</p>
+
+		<p>On modern architectures the MMU is packed within the processor internally. When processor want's to access an address, the address first goes through MMU and then through the local bus to the RAM where it locate the data.</p>
+		
+		<h2>Paging structure (PDPT, PD, PT, PTE)</h2>
+		<h2>Virtual address space</h2>
+		<h2>Physical address space</h2>
+		<h2>Virtual address translation</h2>
+		<h2>Physical Address Extension</h2>
+		<h2></h2>
+
+		<footer>
+			<hr><i>Copyright (c) 2022 Daniel Gavlas</i></hr>
+		</footer>
+
+	</div>
+</body>
+
+</html>
