@@ -4,4 +4,4 @@
 
 ## Articles
 
-[x86 calling conventions](articles/x86_calling_conventions.md)
+[x86 calling conventions](articles/x86_calling_conventions)
