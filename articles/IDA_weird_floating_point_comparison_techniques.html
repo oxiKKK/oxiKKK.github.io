@@ -1,0 +1,105 @@
+<html>
+
+<head>
+	<link rel="stylesheet" href="../style.css">
+
+	<title></title>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../index.html" style="float:right;">Index</a>
+	</div>
+
+	<div class="MiddleRow">
+		<h1>IDA weird-floating point comparison techniques</h1>
+	
+		<hr></hr>
+
+		<p>In this short article I'd like to focus on a weird way of how IDA decompiles floating point comparisons between two variables. On normal x86 architecture, the normal way of comparing two integer values involves executing the <i>cmp</i> instruction, and after that the following jump, depending on the circumstances and set bits inside EFLAGS register (more on that in this article, <a href="x86_registers.html">x86 Registers</a>). However when it comes to floating-point values, the FPU (Floating Point Unit) comes in place with it's own x87 instruction set. More on the x87 register set in this article, <a href="x86_x87_FPU.html">x87 FPU</a>.</p>
+
+		<p>The instruction that takes place when comparing two floating-point values is called, surprisingly, <i>fcomp</i>. When executed, the result is stored in a similiar way, like when calling x86's <i>cmp</i>. In this case, the result of the operation is stored in three bits inside the <i>status word</i>, that is a part of the x87 FPU instruction set. These are called <i>condition flags</i>, and depending on the result of the operation, certain bit is set in one of these. The following figure shows the table with associated conditions and results.</p>
+
+		<table>
+			<tr>
+				<th class="center">Condition</th>
+				<th class="center">C0</th>
+				<th class="center">C2</th>
+				<th class="center">C3</th>
+			</tr>
+			<tr>
+				<th class="center">ST(0) > ARG</th>
+				<th class="center">0</th>
+				<th class="center">0</th>
+				<th class="center">0</th>
+			</tr>
+			<tr>
+				<th class="center">ST(0) < ARG</th>
+				<th class="center">1</th>
+				<th class="center">0</th>
+				<th class="center">0</th>
+			</tr>
+			<tr>
+				<th class="center">ST(0) == ARG</th>
+				<th class="center">0</th>
+				<th class="center">0</th>
+				<th class="center">1</th>
+			</tr>
+		</table>
+
+		<p>The <i>ST(0)</i> register is also a part of the x87 FPU instruction set, and the value in this register is set through the ,<i>fld</i> instruction. After the value to <i>ST(0)</i> is loaded, the comparison can begin. The <i>fcomp</i> instruction is executed with an argument I've described above as <i>ARG</i>. The following code snipped shows side-by side comparism of assembly code to C equivalent.</p>
+
+		<center>Assembly code</center>
+<code>fld    val1        ; load val1 into ST(0)
+fcomp  val2        ; compare val2 with val2
+fnstsw ax          ; load status word to ax
+and    eax, 0x4100 ; check for particular bits to be set
+jnz    short loc_123456
+...
+</code>
+
+		<center>C code</center>
+<code>float val1, val2;
+if (val1 <= val2)
+    goto loc_123456;
+else ...
+</code>
+		<p>The first two lines we've described below. The value of <i>val1</i> is loaded into <i>ST(0)</i>, then the comparison is performed, and particular bits in the status word are set. This is where it becomes interesting. The next instruction called <i>fnstsw</i> loads up the status word into register <i>ax</i> (Half of EAX). This is just the contents of the status word that also contains <i>C0</i> through out <i>C3</i>. More on status word in this article, <a href="x86_x87_FPU.html">x87 FPU</a>.</p>
+
+		<p>And then probably the most confusing stuff happends. An AND operation on the lower part of the eax register. When we look at the following figure:</p>
+
+		<center><img src="../assets/FPU_Status_register.svg" style="width: 120%;height: 40%"></img></center>
+
+		<p>We can see that the bits <i>8, 9, 10 and 14</i> are the <i>Condition bits</i> described above (<i>C0</i> through <i>C3</i>). These are the bits that indicate the state of the comparison, as described in the table below. For those that are familiar with the AND operation probably knows where this is going.</p>
+
+		<p>So why does and operation with such weird hexadecimal value even exists there, and why is it needed? Lets see this value in binary.</p>
+
+<code>0x4100 in binary:
+0100 0001 0000 0000
+</code>
+
+		<p>Let's compare these two bits that are set to the <i>status word</i> and see what happens. If you see the status word bits, the <i>C0</i> and <i>C3</i> are stored at these positions in our number <i>0x4100</i>.</p>
+
+<code>
+0100 0001 0000 0000
+ ^      ^
+ C3     C0
+</code>
+
+		<p>Remember what the assembly showed?</p>
+
+<code>fnstsw ax
+and    eax, 0x4100
+</code>
+
+		<p>The <i>status word</i> is loaded into <i>ax</i> and the <i>ax</i> is then masked with value <i>0x4100</i> which we've just discussed. If we see which bits are masked, we can see that bits <i>C3</i> and <i>C0</i> have the value of 1. If we look at our table, we can see that this exact combination is used when using the <i><= comparison</i>.</p>
+
+		<p>And this the entire magic behind all of this. The magic value actually represents the bits to be set inside the status word.</p>
+
+		<footer>
+			<hr>Copyright (c) 2022 oxiKK</hr>
+		</footer>	
+	</div>
+</body>
+
+</html>
