@@ -1,2 +1,2 @@
-# oxiKKK.github.io
-Personal blog post
+# ox-blog.gd
+A personal website blog.

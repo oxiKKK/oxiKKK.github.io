@@ -1,0 +1,221 @@
+<html>
+
+<head>
+	<title>oxiKKK's personal blog - GoldSource SVC Parsing Architecture</title>
+	
+	<meta name="author" content="oxiKKK">
+	<meta name="description" content="My personal blog post. A collection of articles about programming, hardware, cheating, reverse-engineering and more!">
+	<meta property="og:description" content="My personal blog post. A collection of articles about programming, hardware, cheating, reverse-engineering and more!">
+	<meta name="keywords" content="oxiKKK blog, oxiKKK, assembly, C, C++, GoldSrc, programming, low-level, operating systems, OS, hardware, reverse-engineering">
+
+	<link rel="stylesheet" href="../style.css">
+
+	<script src="../main.js"></script>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../index.html" style="float:right;">Index</a>
+		<a href="../about.html" style="float:left;">About</a>
+		<div class="Header">oxiKKK.github.io</div>
+	</div>
+
+	<div class="MiddleRow">
+		<div class="ArticleHeader">GoldSource SVC Parsing Architecture</div>
+
+		<p>A SVC (SerVer Command) parsing system is a system used inside the GoldSource engine for one way communication between the server and the client. The code is responsible for dispatching several routines (messages) that the server can send to client at any moment during play time. Both sending and parsing messages must strictly follow a well defined protocol (also called protocol 48 in the newest version of the game) that both the server and the client must use in order to prevent message buffer read/write failures.</p>
+
+		<h1>Overall theory</h1>
+
+		<p>As said before, this communication allows a one way connection between server and client (the other way, i.e. client to server, would be CLC system - CLient Command). There are total of <i>61 messages</i> that the server can send to the client and that the client can then dispatch/parse. Then there are also user messages that are sent from the server but we'll not discuss them here in detail. Each message (or a <i>SVC</i> from now on) has a number (or a <i>command</i> or a <i>CMD</i> from now on) associated to it.</p>
+		
+		<p>When the server wants to send a specific command to the client, he prepares a new SVC message by writing the command number as a first byte of the actual message. After the command number, the actual data is written.</p>
+
+		<center><img src="../assets/goldsrc_svc_message.svg" style="max-width: 80%;max-height: 80%"></img></center>
+
+		<p>Each SVC has a variable amount of data to it. Some SVC's don't have any data associated to it, they just inform about some event/notification or something similiar. Others may contain huge payloads to transfer over the network.</p>
+
+		<h2>Protocol 48</h2>
+
+		<p>A <i>protocol</i> could be defined as some kind of policy of how the data are both <i>scheduled</i> and <i>parsed</i>. The server and client must follow the same policy.</p>
+
+		<p>Older builds of the game may have older protocol schemes and thus users using these versions of the game cannot play on the newest version of the game, including 99% of the online servers. Some servers supports extensions such as <i>dproto</i> (Dual Protocol) which allows servers to support multiple protocols at once, allowing users with older game builds to join.</p>
+
+		<h2>A "bad read"</h2>
+
+		<p>A <i>bad read</i> is a term often used within the networking code used to determine a bad read operation. When this happens, the whole data stream is malformed and the read operation must end immediately.</p>
+
+		<p>What happens if the server sends something that the client doesn't expect? <i>Bad things</i>. In general, a read failure would occur and that's a instant disconnect from the server. Knowing this, we must assure that on the client side we read the data in the exact same order as the server meant us to read it, otherwise a "bad read" could occur.</p>
+
+		<center><img src="../assets/goldsrc_svc_badread.svg" style="max-width: 80%;max-height: 80%"></img></center>
+		
+		<h1>How stuff works programatically</h1>
+
+		<h2>CL_ParseServerMessage()</h2>
+		
+		<p>On client side, every message is parsed inside function <i>CL_ParseServerMessage()</i>. The function is composed out of main loop and some other glue code around which we'll not discuss in here. The main loop is responsible to run until it runs out of messages to parse. It carefully goes through all the commands that server sent and dispatches them accordingly.</p>
+
+		<p>There are two types of commands that will be dispatched/parsed. A <i>SVC command</i> and a <i>UserMSG command</i>. A SVC command is targeted for engine code, meaning that it is being dispatched inside the engine. The another one, UserMSG command is being handled inside the client dll. Client dlls uses this form of communication. They are dispatched as following.</p>
+		
+		<center><img src="../assets/goldsrc_svc_parseservermessage.svg" style="max-width: 80%;max-height: 80%"></img></center>
+
+		<h2>SVC message table</h2>
+
+		<p>There are <i>57 SVC messages</i> with valid parsing routines. Others are considered as invalid or unused (or UseMSGs). When the message is being parsed, it means that particular parsing routine for specific command is being dispatched. This parsing routine may or may not contain the functions that allow to read the data from the server. One of such function is for example <i>MSG_ReadByte()</i>.</p>
+
+<code>// A list of SVC parsing routines - cl_parsefuncs[]
+// The first is the SVC name, then the parsing/dispatch 
+// routine and then the command number.
+
+"svc_bad"                 -> nullptr                             // 0
+"svc_nop"                 -> nullptr                             // 1
+"svc_disconnect"          -> CL_Parse_Disconnect                 // 2
+"svc_event"               -> CL_ParseEvent                       // 3
+"svc_version"             -> CL_Parse_Version                    // 4
+"svc_setview"             -> CL_Parse_SetView                    // 5
+"svc_sound"               -> CL_Parse_Sound                      // 6
+"svc_time"                -> CL_Parse_Time                       // 7
+"svc_print"               -> CL_Parse_Print                      // 8
+"svc_stufftext"           -> CL_Parse_StuffText                  // 9
+"svc_setangle"            -> CL_Parse_SetAngle                   // 10
+"svc_serverinfo"          -> CL_Parse_ServerInfo                 // 11
+"svc_lightstyle"          -> CL_Parse_LightStyle                 // 12
+"svc_updateuserinfo"      -> CL_Parse_UpdateUserInfo             // 13
+"svc_deltadescription"    -> CL_Parse_DeltaDescription           // 14
+"svc_clientdata"          -> CL_Parse_ClientData                 // 15
+"svc_stopsound"           -> CL_Parse_StopSound                  // 16
+"svc_pings"               -> CL_Parse_Pings                      // 17
+"svc_particle"            -> CL_Parse_Particle                   // 18
+"svc_damage"              -> CL_Parse_Damage                     // 19
+"svc_spawnstatic"         -> CL_Parse_SpawnStatic                // 20
+"svc_event_reliable"      -> CL_Parse_ReliableEvent              // 21
+"svc_spawnbaseline"       -> CL_Parse_SpawnBaseline              // 22
+"svc_temp_entity"         -> CL_Parse_TempEntity                 // 23
+"svc_setpause"            -> CL_Parse_SetPause                   // 24
+"svc_signonnum"           -> CL_Parse_SignonNum                  // 25
+"svc_centerprint"         -> CL_Parse_CenterPrint                // 26
+"svc_killedmonster"       -> CL_Parse_KilledMonster              // 27
+"svc_foundsecret"         -> CL_Parse_FoundSecret                // 28
+"svc_spawnstaticsound"    -> CL_Parse_SpawnStaticSound           // 29
+"svc_intermission"        -> CL_Parse_Intermission               // 30
+"svc_finale"              -> CL_Parse_Finale                     // 31
+"svc_cdtrack"             -> CL_Parse_CDTrack                    // 32
+"svc_restore"             -> CL_Parse_Restore                    // 33
+"svc_cutscene"            -> CL_Parse_CutScene                   // 34
+"svc_weaponanim"          -> CL_Parse_WeaponAnim                 // 35
+"svc_decalname"           -> CL_Parse_DecalName                  // 36
+"svc_roomtype"            -> CL_Parse_RoomType                   // 37
+"svc_addangle"            -> CL_Parse_AddAngle                   // 38
+"svc_newusermsg"          -> CL_Parse_NewUserMsg                 // 39
+"svc_packetentities"      -> CL_Parse_PacketEntities             // 40
+"svc_deltapacketentities" -> CL_Parse_DeltaPacketEntities        // 41
+"svc_choke"               -> CL_Parse_Choke                      // 42
+"svc_resourcelist"        -> CL_Parse_ResourceList               // 43
+"svc_newmovevars"         -> CL_Parse_NewMoveVars                // 44
+"svc_resourcerequest"     -> CL_Parse_ResourceRequest            // 45
+"svc_customization"       -> CL_Parse_Customization              // 46
+"svc_crosshairangle"      -> CL_Parse_CrosshairAngle             // 47
+"svc_soundfade"           -> CL_Parse_SoundFade                  // 48
+"svc_filetxferfailed"     -> CL_ParseFileTxferFailed             // 49
+"svc_hltv"                -> CL_Parse_HLTV                       // 50
+"svc_director"            -> CL_Parse_Director                   // 51
+"svc_voiceinit"           -> CL_Parse_VoiceInit                  // 52
+"svc_voicedata"           -> CL_Parse_VoiceData                  // 53
+"svc_sendextrainfo"       -> CL_Set_ServerExtraInfo              // 54
+"svc_timescale"           -> CL_Parse_Timescale                  // 55
+"svc_resourcelocation"    -> CL_Parse_ResourceLocation           // 56
+"svc_sendcvarvalue"       -> CL_Send_CvarValue                   // 57
+"svc_sendcvarvalue2"      -> CL_Send_CvarValue2                  // 58
+"svc_exec"                -> CL_Exec                             // 59
+"End of List"             -> nullptr                             // 255
+</code>
+
+		<h2>Sample parsing routine</h2>
+
+		<p>Some parsing routines can be as simple as one line of code only. However some of them are far more complex. The best example of a single routine could be <i>CL_Parse_Print()</i> which only displays text in the console from the server.</p>
+
+<code>// Is called when the server issues command #8 (svc_print)
+void CL_Parse_Print()
+{
+    // Displays string that the sever sent to us 
+    // inside the console.
+    Con_Printf("%s", MSG_ReadString());
+}
+</code>
+
+		<p>On the other hand, <i>CL_Parse_PacketEntities()</i> contains some really complex logic and it's composed out of nearly 350 lines of solid code.</p>
+
+		<h2>Reading routines</h2>
+
+		<p>These routines are responsible for reading from the buffer that the server sent us. The buffer that the server wrote to is just a continuous block of data that is composed out of several SVC and UserMSG messages. In order to read the data after the command number, we need a rich set of function that are capable of reading bits, bytes, integers, floats, strings or buffers of custom size. Such functions are stored inside common.c source file.</p>
+
+<code>int MSG_ReadByte(void)
+{
+    int c; // The value that will be read
+
+    // Check for bad read
+    if (msg_readcount < net_message.cursize)
+    {
+        // Read the value out of the global data buffer
+        c = net_message.data[msg_readcount];
+        msg_readcount++;
+    }
+    else
+    {
+        // This read resulted in a bad read, we have to abort
+        msg_badread = 1;
+        c = -1;
+    }
+
+    return c;
+}
+</code>
+
+		<p>Why does the function returns an integer instead of byte is questionable, however this is original design and keeping it the same way is eligible in order to not cause any hard-fixable bugs. As we can see, the function checks for a bad read and it reads the byte value out of the global buffer that the server sent to us. This is all to it. After the value is read, a global counter msg_readcount is incremented, in order to inform at which position we're while reading.</p>
+
+		<p>Similiar implementations are for reading other types, however the core remains the same - all of them are utilizing the main net_message buffer.</p>
+
+		<h1>Conclusion</h1>
+
+		<p>This system of one-way communication between server and client is nowadays deprecated, hard to debug, and hard to manage. Probably the biggest issue is when a bug is created (a bad read or a bad write from the server side), the entire system collapses and is unable to continue. This requires rich tool set of debugging tools in order to eligibly determine where is the bug origin. Without the debugging tools, finding such bug would be really painful and frustrating to say the least.</p>
+
+		<p>In other words, in such system, everything has to be 100% balanced without any bug and very well bugtested and this makes it not so much comprehensive to todays standards.</p>
+
+		<div class="Footer">
+			<div style="float: right">Copyright © 2022 oxiKKK</div>
+			<div style="float: left" id="LastUpdatedID"></div>
+			<div class="Icon">
+				<a href="https://www.youtube.com/c/OX666" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="red" class="bi bi-youtube"
+						viewBox="0 0 16 16">
+						<path
+							d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.007 2.007 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.007 2.007 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31.4 31.4 0 0 1 0 7.68v-.123c.002-.215.01-.958.064-1.778l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.007 2.007 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A99.788 99.788 0 0 1 7.858 2h.193zM6.4 5.209v4.818l4.157-2.408L6.4 5.209z" />
+					</svg></a>
+
+				<a href="https://github.com/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" class="bi bi-github"
+						viewBox="0 0 16 16">
+						<path
+							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+					</svg></a>
+				<a href="https://steamcommunity.com/id/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1b2838" class="bi bi-steam"
+						viewBox="0 0 16 16">
+						<path
+							d="M.329 10.333A8.01 8.01 0 0 0 7.99 16C12.414 16 16 12.418 16 8s-3.586-8-8.009-8A8.006 8.006 0 0 0 0 7.468l.003.006 4.304 1.769A2.198 2.198 0 0 1 5.62 8.88l1.96-2.844-.001-.04a3.046 3.046 0 0 1 3.042-3.043 3.046 3.046 0 0 1 3.042 3.043 3.047 3.047 0 0 1-3.111 3.044l-2.804 2a2.223 2.223 0 0 1-3.075 2.11 2.217 2.217 0 0 1-1.312-1.568L.33 10.333Z" />
+						<path
+							d="M4.868 12.683a1.715 1.715 0 0 0 1.318-3.165 1.705 1.705 0 0 0-1.263-.02l1.023.424a1.261 1.261 0 1 1-.97 2.33l-.99-.41a1.7 1.7 0 0 0 .882.84Zm3.726-6.687a2.03 2.03 0 0 0 2.027 2.029 2.03 2.03 0 0 0 2.027-2.029 2.03 2.03 0 0 0-2.027-2.027 2.03 2.03 0 0 0-2.027 2.027Zm2.03-1.527a1.524 1.524 0 1 1-.002 3.048 1.524 1.524 0 0 1 .002-3.048Z" />
+					</svg></a>
+				<a href="https://discordapp.com/users/363390198563864576/" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#404EED" class="bi bi-discord"
+						viewBox="0 0 16 16">
+						<path
+							d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.051.051 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.594.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.034.034 0 0 0-.02-.019Zm-8.198 7.307c-.789 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612Zm5.316 0c-.788 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612Z" />
+					</svg></a>
+			</div>
+		</div>
+
+	</div>
+</body>
+
+</html>

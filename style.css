@@ -1,0 +1,161 @@
+body {
+	margin: 0px;
+	padding: 0px;
+}
+
+/*Top row for index, about, ...*/
+.TopRow {
+	overflow: hidden;
+	position: fixed;
+	background-color: #eeeeee;
+	width: 100%;
+	border-bottom: solid grey 1px;
+}
+
+/*Link at top row*/
+.TopRow a {
+	float: left;
+	color: black;
+	padding: 11px 30px;
+	text-decoration: none;
+	font-size: 20px;
+	transition: background-color 0.3s;
+}
+
+/*Activated when links at top row are hovered*/
+.TopRow a:hover {
+	background-color: #d1d1d1;
+}
+
+/*Used at the top row to display site name*/
+.TopRow .Header {
+	text-align: center;
+	padding: 5px 30px;
+	font-size: 30px;
+}
+
+/*The middle row where all the contents is*/
+.MiddleRow {
+	margin: auto;
+	max-width: 50em;
+	padding: 16px;
+	padding-top: 40px;
+	overflow-x: hidden;
+	word-wrap: break-word;
+	background-color: #eeeeee;
+	box-sizing: border-box; /* Disables horizontal scrollbar when width set to 100%*/
+}
+
+/*Used as article title*/
+.MiddleRow .ArticleHeader {
+	margin-top: 5px;
+	margin-bottom: 10px;
+	font-size: 26px;
+	font-weight: bold;
+	text-align: center;
+	width: 100%;
+	border-bottom: solid grey 1px;
+}
+
+/*Used as article link*/
+.MiddleRow .ArticleLink {
+	font-size: 18px;
+	line-height: 25px;
+	padding-bottom: 2px;
+	padding-left: 10px;
+}
+
+/*Date on which the article was written*/
+.MiddleRow .ArticleLink .ArticleDate {
+	font-size: 11px;
+	line-height: 15px;
+	padding-top: 10px;
+	font-style: italic;
+	text-transform: uppercase;
+}
+
+/*Description of the article*/
+.MiddleRow .ArticleLink .ArticleDesc {
+	font-size: 14px;
+	padding-left: 20px;
+	line-height: 20px;
+}
+
+/*READ-MORE link after article description*/
+.MiddleRow .ArticleLink .ArticleReadMore {
+	font-size: 14px;
+	padding-left: 20px;
+	text-transform: uppercase;
+	color: cornflowerblue;
+}
+
+.MiddleRow .ArticleLink a{
+	text-decoration: none;
+	color: black;
+	transition: color 0.2s;
+}
+
+.MiddleRow .ArticleLink a:hover{
+	color: cornflowerblue;
+}
+
+/*For the copyright and last updated*/
+.MiddleRow .Footer {
+	font-size: 14px;
+	margin-top: 30px;
+	margin-bottom: -20px;
+	padding-top: 10px;
+	width: 100%;
+	border-top: solid grey 1px;
+}
+
+/*Icons to social media in the copyright and last updated region*/
+.MiddleRow .Footer .Icon {
+	color: black;
+	margin-left: calc(50% - ((20px - 3px) * 4));
+}
+
+/*Used as a code snippet with raw whitespace formatting*/
+code {
+	padding-right: 16px;
+	padding-left: 16px;
+	padding-top: 10px;
+	padding-bottom: 10px;
+	white-space: pre-wrap;
+	background-color: #dfdfdf;
+	display: block;
+	font-family: monospace;
+	word-wrap: break-word;
+}
+
+/*Used when we want to highlight some text in the code region*/
+code .highlight {
+	background-color: rgba(255, 255, 0, 0.5);
+	display: inline-flex;
+}
+
+/*Another type of highlight with different color*/
+code .highlight1 {
+	background-color: rgba(0, 255, 0, 0.5);
+	display: inline-flex;
+}
+
+th.center {
+	text-align: center;
+	white-space: nowrap;
+}
+
+table {
+	margin-left: auto;
+	margin-right: auto;
+}
+
+th {
+	font-weight: normal;
+	text-align: left;
+}
+
+/*Disable useless below spacing*/
+h1, h2, h3, h4, h5, h6 {
+	margin-bottom: 0px;
+}

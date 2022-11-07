@@ -1,0 +1,142 @@
+<html>
+
+<head>
+	<title>oxiKKK's personal blog - IDA weird-floating point comparison techniques</title>
+	
+	<meta name="author" content="oxiKKK">
+	<meta name="description" content="My personal blog post. A collection of articles about programming, hardware, cheating, reverse-engineering and more!">
+	<meta property="og:description" content="My personal blog post. A collection of articles about programming, hardware, cheating, reverse-engineering and more!">
+	<meta name="keywords" content="oxiKKK blog, oxiKKK, assembly, C, C++, GoldSrc, programming, low-level, operating systems, OS, hardware, reverse-engineering">
+
+	<link rel="stylesheet" href="../style.css">
+
+	<script src="../main.js"></script>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../index.html" style="float:right;">Index</a>
+		<a href="../about.html" style="float:left;">About</a>
+		<div class="Header">oxiKKK.github.io</div>
+	</div>
+
+	<div class="MiddleRow">
+		<div class="ArticleHeader">IDA weird-floating point comparison techniques</div>
+
+		<p>In this short article I'd like to focus on a weird way of how IDA decompiles floating point comparisons between two variables. On normal x86 architecture, the normal way of comparing two integer values involves executing the <i>cmp</i> instruction, and after that the following jump, depending on the circumstances and set bits inside EFLAGS register (more on that in this article, <a href="x86_registers.html">x86 Registers</a>). However when it comes to floating-point values, the FPU (Floating Point Unit) comes in place with it's own x87 instruction set. More on the x87 register set in this article, <a href="x86_x87_FPU.html">x87 FPU</a>.</p>
+
+		<p>The instruction that takes place when comparing two floating-point values is called, surprisingly, <i>fcomp</i>. When executed, the result is stored in a similar way, like when calling x86's <i>cmp</i>. In this case, the result of the operation is stored in three bits inside the <i>status word</i>, that is a part of the x87 FPU instruction set. These are called <i>condition flags</i>, and depending on the result of the operation, certain bit is set in one of these. The following figure shows the table with associated conditions and results.</p>
+
+		<table>
+			<tr>
+				<th class="center">Condition</th>
+				<th class="center">C0</th>
+				<th class="center">C2</th>
+				<th class="center">C3</th>
+			</tr>
+			<tr>
+				<th class="center">ST(0) > ARG</th>
+				<th class="center">0</th>
+				<th class="center">0</th>
+				<th class="center">0</th>
+			</tr>
+			<tr>
+				<th class="center">ST(0) < ARG</th>
+				<th class="center">1</th>
+				<th class="center">0</th>
+				<th class="center">0</th>
+			</tr>
+			<tr>
+				<th class="center">ST(0) == ARG</th>
+				<th class="center">0</th>
+				<th class="center">0</th>
+				<th class="center">1</th>
+			</tr>
+		</table>
+
+		<p>The <i>ST(0)</i> register is also a part of the x87 FPU instruction set, and the value in this register is set through the <i>fld</i> instruction. After the value to <i>ST(0)</i> is loaded, the comparison can begin. The <i>fcomp</i> instruction is executed with an argument described above as <i>ARG</i>. The following code snipped shows side-by side comparison of assembly code to C equivalent.</p>
+
+		<center>Assembly code</center>
+<code>fld    val1        ; load val1 into ST(0)
+fcomp  val2        ; compare val2 with val1 (ST(0))
+fnstsw ax          ; load status word to ax
+and    eax, 0x4100 ; check for particular bits to be set
+jnz    short loc_123456
+...
+</code>
+
+		<center>C code</center>
+<code>float val1, val2;
+if (val1 <= val2)
+    goto loc_123456;
+else ...
+</code>
+		<p>The value of <i>val1</i> is loaded into <i>ST(0)</i>, then the comparison is performed, and particular bits in the status word are set. This is where it becomes interesting. The next instruction called <i>fnstsw</i> loads up the status word into register <i>ax</i> (Half of EAX). This is just the contents of the status word that also contains <i>C0</i> through out <i>C3</i>.</p>
+
+		<p>And then probably the most confusing stuff happens. An AND operation on the lower part of the EAX register. When we look at the following figure:</p>
+
+		<center><img src="../assets/FPU_Status_register.svg" style="width: 120%;height: 40%"></img></center>
+
+		<p>We can see that the bits <i>8, 9, 10 and 14</i> are the <i>Condition bits</i> described above (<i>C0</i> through <i>C3</i>). These are the bits that indicate the state of the comparison, as described in the table below. For those that are familiar with the AND operation probably knows where this is going.</p>
+
+		<p>So why does and operation with such weird hexadecimal value even exists there, and why is it needed? Lets see this value in binary.</p>
+
+<code>0x4100 in binary:
+0100 0001 0000 0000
+</code>
+
+		<p>Let's compare these two bits that are set to the <i>status word</i> and see what happens. If you see the status word bits, the <i>C0</i> and <i>C3</i> are stored at these positions in our number <i>0x4100</i>.</p>
+
+<code>
+0100 0001 0000 0000
+ ^      ^
+ C3     C0
+</code>
+
+		<p>Remember what the assembly showed?</p>
+
+<code>fnstsw ax
+and    eax, 0x4100
+</code>
+
+		<p>The <i>status word</i> is loaded into <i>ax</i> and the <i>ax</i> is then masked with value <i>0x4100</i> which we've just discussed. If we see which bits are masked, we can see that bits <i>C3</i> and <i>C0</i> have the value 1. If we look at our table, we can see that this exact combination is used when using the <i><= comparison</i>.</p>
+
+		<p>And this the entire magic behind all of this. The magic value actually represents the bits to be set inside the status word.</p>
+
+		<div class="Footer">
+			<div style="float: right">Copyright © 2022 oxiKKK</div>
+			<div style="float: left" id="LastUpdatedID"></div>
+			<div class="Icon">
+				<a href="https://www.youtube.com/c/OX666" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="red" class="bi bi-youtube"
+						viewBox="0 0 16 16">
+						<path
+							d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.007 2.007 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.007 2.007 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31.4 31.4 0 0 1 0 7.68v-.123c.002-.215.01-.958.064-1.778l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.007 2.007 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A99.788 99.788 0 0 1 7.858 2h.193zM6.4 5.209v4.818l4.157-2.408L6.4 5.209z" />
+					</svg></a>
+
+				<a href="https://github.com/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" class="bi bi-github"
+						viewBox="0 0 16 16">
+						<path
+							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+					</svg></a>
+				<a href="https://steamcommunity.com/id/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1b2838" class="bi bi-steam"
+						viewBox="0 0 16 16">
+						<path
+							d="M.329 10.333A8.01 8.01 0 0 0 7.99 16C12.414 16 16 12.418 16 8s-3.586-8-8.009-8A8.006 8.006 0 0 0 0 7.468l.003.006 4.304 1.769A2.198 2.198 0 0 1 5.62 8.88l1.96-2.844-.001-.04a3.046 3.046 0 0 1 3.042-3.043 3.046 3.046 0 0 1 3.042 3.043 3.047 3.047 0 0 1-3.111 3.044l-2.804 2a2.223 2.223 0 0 1-3.075 2.11 2.217 2.217 0 0 1-1.312-1.568L.33 10.333Z" />
+						<path
+							d="M4.868 12.683a1.715 1.715 0 0 0 1.318-3.165 1.705 1.705 0 0 0-1.263-.02l1.023.424a1.261 1.261 0 1 1-.97 2.33l-.99-.41a1.7 1.7 0 0 0 .882.84Zm3.726-6.687a2.03 2.03 0 0 0 2.027 2.029 2.03 2.03 0 0 0 2.027-2.029 2.03 2.03 0 0 0-2.027-2.027 2.03 2.03 0 0 0-2.027 2.027Zm2.03-1.527a1.524 1.524 0 1 1-.002 3.048 1.524 1.524 0 0 1 .002-3.048Z" />
+					</svg></a>
+				<a href="https://discordapp.com/users/363390198563864576/" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#404EED" class="bi bi-discord"
+						viewBox="0 0 16 16">
+						<path
+							d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.051.051 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.594.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.034.034 0 0 0-.02-.019Zm-8.198 7.307c-.789 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612Zm5.316 0c-.788 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612Z" />
+					</svg></a>
+			</div>
+		</div>
+	</div>
+</body>
+
+</html>

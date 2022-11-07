@@ -1,0 +1,470 @@
+<html>
+
+<head>
+	<title>oxiKKK's personal blog - GoldSource Command Line Parameters</title>
+	
+	<meta name="author" content="oxiKKK">
+	<meta name="description" content="My personal blog post. A collection of articles about programming, hardware, cheating, reverse-engineering and more!">
+	<meta property="og:description" content="My personal blog post. A collection of articles about programming, hardware, cheating, reverse-engineering and more!">
+	<meta name="keywords" content="oxiKKK blog, oxiKKK, assembly, C, C++, GoldSrc, programming, low-level, operating systems, OS, hardware, reverse-engineering">
+
+	<link rel="stylesheet" href="../style.css">
+
+	<script src="../main.js"></script>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../index.html" style="float:right;">Index</a>
+		<a href="../about.html" style="float:left;">About</a>
+		<div class="Header">oxiKKK.github.io</div>
+	</div>
+
+	<div class="MiddleRow">
+		<div class="ArticleHeader">GoldSource Command Line Parameters</div>
+
+		<p>GoldSrc engine has many command-line parameters that are being identified at the game startup. These parameters can be used to set settings such as maximum refresh rate, the amount of heap available for the game, windows/fullscreen mode, 16bit/32bit rendering and many more.</p>
+
+		<p>In this article I'll cover most (hopefully all) cmd params as I can. In order to do this, I'll use IDA Pro to see the disassembled version of the game.</p>
+
+		<p>The maximum amount of params is <i>MAX_NUM_ARGVS + NUM_SAFE_ARGVS + 1</i>. That is 58.</p>
+
+		<p>Parameters are being stored inside a double-pointer const char* globla variable called <i>largv</i> with the param counter called <i>com_argc</i></p>
+
+		<h2>Safe parameter group (-safe)</h2>
+
+		<p>Parameters inside this group are: <i>-stdvid, -nolan, -nosound, -nocdaudio, -nojoy, -nomouse, -dibonly</i>. Some of these parameters are obsolete and aren't even used anywhere inside the codebase.</p>
+
+		<p>These params are automatically set whenether the <i>-safe</i> param is set.</p>
+
+		<p>They are located inside <i>safeargvs[]</i> array with the size of <i>NUM_SAFE_ARGVS (7)</i> and they're evaluated inside <i>COM_InitArgv()</i> function. The array is present only on windows.</p>
+		
+		<h2>Parameter list</h2>
+
+		<h3>-16bpp, -24bpp, -32bpp</h3>
+
+		<p>These parameters are obsolete in the newest steam version.</p>
+		
+		<p>In order to change these values, go to registry key <i>ScreenBPP</i>.</p>
+
+		<p>These params are checked inside <i>CVideoMode_Common::Init()</i> function.</p>
+
+		<h3>-addons</h3>
+
+		<p>Enables support for the addons folder inside the game directory.</p>
+
+		<p>If this param isn't set, the value is read from registry key <i>addons_folder</i> instead.</p>
+
+		<p>This param is checked inside <i>BEnableAddonsFolder()</i> function.</p>
+
+		<h3>-basedir &lt;dir&gt;</h3>
+
+		<p>Sets the base directory for the game. By default this is set to <i>valve</i>.</p>
+
+		<p>This param is checked inside <i>COM_SetupDirectories()</i> function.</p>
+
+		<h3>-clockwindow &lt;value&gt;</h3>
+		
+		<p>Sets the <i>clockwindow</i> cvar.</p>
+
+		<p>This param is checked inside <i>NET_Init()</i> function.</p>
+
+		<h3>-condebug</h3>
+
+		<p>Sets internal global variable <i>con_debuglog</i> to true. After that, every message that will be printed to console will be also outputed to a file inside Half-Life directory called <i>qconsole.log</i>.</p>
+
+		<p>This param is checked inside <i>Con_Init()</i> function.</p>
+
+		<h3>-console</h3>
+
+		<p>Sets <i>console</i> cvar to true if set. Also if set, the console will pop up after startup.</p>
+
+		<p>Use <i>-toconsole</i> to only set the <i>console</i> cvar to true without showing up the console at startup.</p>
+
+		<p>This param is checked inside <i>Host_Init()</i> and <i>CBaseUI::Start</i> functions.</p>
+
+		<h3>-demoedit</h3>
+
+		<p>Enables obsolete <i>m_EditorMode</i> inside <i>DemoPlayer.dll</i>.</p>
+
+		<p>This param is checked inside <i>DemoPlayer_Init()</i> function.</p>
+
+		<h3>-dibonly</h3>
+
+		<p><i>-dibonly</i> is part of the <i>safeargvs</i> array.</p>
+
+		<p>This parameter is obsolete and isn't used anywhere along the codebase.</p>
+
+		<h3>-directblit, -nodirectblit</h3>
+
+		<p>Enables and disables blit texturing. These params control the global variable <i>s_bSupportsBlitTexturing</i>.</p>
+
+		<p>By default, if none of these params are set, the <i>s_bSupportsBlitTexturing</i> is set to false. However, if none of these params aren't set, and the <i>glextension</i> support is enabled with the <i>GL_EXT_framebuffer_multisample_blit_scaled</i> being available, the <i>s_bSupportsBlitTexturing</i> is set to true.</p>
+
+		<p>If one of the params are enabled, the default value of <i>s_bSupportsBlitTexturing</i> is being overrided with the setting. (<i>-directblit or -nodirectblit</i>)</p>
+
+		<p>These params are checked inside <i>GL_SetMode()</i> function.</p>
+
+		<p>If enabled, following code is executed inside <i>GL_EndRendering()</i> function:</p>
+
+<code>if (s_bSupportsBlitTexturing)
+{
+	qglBlitFramebufferEXT(0, 0, width, height, iDestX, iDestY, 
+	                      iDestWidth, iDestHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+}
+</code>
+
+		<p>This param has no effect if either <i>-nofbo</i> or <i>-nomsaa</i> is set. Or if the <i>glextensions</i> aren't supported or the <i>GL_EXT_framebuffer_multisample</i> extension isn't present.</p>
+
+		<h3>-forceres</h3>
+
+		<p>Forces the <i>-width, -height</i> params to be set.</p>
+
+		<p>Can be set only if in windowed mode or when <i>-nofbo</i> isn't set</p>
+
+		<p>This param is checked inside <i>CVideoMode_Common::Init()</i> function.</p>
+		
+		<h3>-freq</h3>
+
+		<p>Overrides the default monitor refresh rate.</p>
+
+		<p>This will work only in fullscreen mode.</p>
+
+		<p>If the entered frequency isn't supported by your monitor you'll get following message.</p>
+
+		<code>Con_Printf("Frequency %d is not supported by your monitor\n", target.dmDisplayFrequency);</code>
+
+		<p>The frequency is set by <i>ChangeDisplaySettingsExA</i> function.</p>
+
+		<p>On Linux this param is obsolete. Tho it does print message "Setting refresh rate to %dHz\n", but does nothing.</p>
+
+		<p>This param is checked inside <i>GL_SetMode()</i> function.</p>
+		
+		<h3>-full, -fullscreen</h3>
+		
+		<p>Force the game to launch in fullscreen mode. Both params do the same thing.</p>
+		
+		<p>This param is checked inside <i>VideoMode_Create()</i> function.</p>
+		
+		<h3>-game</h3>
+		
+		<p>Sets the working directory for mod. For example for CS this is set to <i>cstrike</i>.</p>
+		
+		<h3>-gl_log</h3>
+		
+		<p>Enables support for <i>gl_log</i> console command.</p>
+
+		<p>This param is checked inside <i>VID_Init()</i> function.</p>
+		
+		<h3>-glext</h3>
+
+		<p>If set, at the game startup, all of the extensions supported will be printed out.</p>
+
+		<p>This param is checked inside <i>GL_Init()</i> function.</p>
+		
+		<h3>-heapsize &lt;value&gt;</h3>
+
+		<p>Preserves the amount of heap memory to the engine. In bytes.</p>
+
+		<p>The value is being capped at <i>14,680,064 - 134,217,728</i> bytes. If the value isn't in range, it will be set to default. (<i>41,943,040</i> bytes)</p>
+
+		<p>Works only if <i>-minmemory</i> isn't set.</p>
+
+		<p>This param is checked inside <i>Sys_InitMemory()</i> function.</p>
+		
+		<h3>-height, -width</h3>
+		
+		<p>Sets the screen resultion.</p>
+
+		<p>This param is checked inside <i>CVideoMode_Common::Init()</i> function.</p>
+		
+		<h3>-insecure (windows only)</h3>
+		
+		<p>Sets the <i>m_bWantToBeSecure</i> member inside <i>CSteam3Server</i>.</p>
+
+		<p>This param is checked inside <i>CSteam3Server::Activate()</i> function.</p>
+		
+		<h3>-loopback (windows only)</h3>
+		
+		<p>Being passed as an argument into <i>setsockopt()</i> function.</p>
+		
+		<p>This param is checked inside <i>NET_IPSocket</i> function.</p>
+		
+		<h3>-maxplayers &lt;value&gt; (windows only)</h3>
+		
+		<p>Sets the <i>svs.maxplayers</i> field.</p>	
+
+		<p>This param is checked inside <i>SV_SetMaxclients()</i> function.</p>
+		
+		<h3>-minmemory</h3>
+		
+		<p>Overrides the heapsize to minimum amount of memory. (<i>14,680,064</i> bytes)</p>
+		
+		<p>If this is set, the <i>-heapsize</i> does nothing.</p>
+		
+		<h3>-netsleep</h3>
+		
+		<p>Disables global variable <i>net_sleepforever</i> which is then being passed into <i>select()</i> function inside <i>NET_Sleep()</i>.</p>
+
+		<p>This param is checked inside <i>NET_Init()</i> function.</p>
+		
+		<h3>-netthread (windows only)</h3>
+		
+		<p>I'm not sure about this one, but seems like this enables multithreading in NET code by setting <i>use_thread</i> global variable to true.</p>
+		
+		<p>This param is checked inside <i>NET_Init()</i> function.</p>
+		
+		<h3>-noborder</h3>
+		
+		<p>Disables window border. Adds <i>SDL_WINDOW_BORDERLESS</i> flag to <i>uiFlags</i> which is then being passed into <i>SDL_CreateWindow()</i> function.</p>
+		
+		<p>This param is checked inside <i>CGame::CreateGameWindow()</i> function.</p>
+		
+		<h3>-nobreakpad</h3>
+		
+		<p>If set, the steam breakpad crash handler is disabled. The crash handler is being set by calling <i>SteamAPI_UseBreakpadCrashHandler()</i> function.</p>
+		
+		<p>This is the first ever parameter evaluated by the engine code.</p>
+		
+		<p>This param is checked inside <i>CDedicatedServerAPI::Init()</i> and <i>CEngineAPI::Run()</i> functions.</p>
+		
+		<h3>-nocdaudio</h3>
+
+		<p>Disables cd audio support.</p>
+
+		<p><i>-nocdaudio</i> is part of the <i>safeargvs</i> array.</p>
+		
+		<p>This param is checked inside <i>CCDAudio::_Init()</i> function. (And more functions)</p>
+
+		<h3>-nofbo</h3>
+
+		<p>Disables opengl FBO scaling.</p>
+
+		<p>This param is checked inside <i>GL_SetMode()</i> function.</p>
+
+		<h3>-noforcemaccel (windows only)</h3>
+
+		<p>Forces the engine to use operating system mouse acceleration.</p>
+
+		<h3>-noforcemparms (windows only)</h3>
+
+		<p>Forces the engine to use operating system mouse parameters.</p>
+		
+		<h3>-noforcemspd (windows only)</h3>
+
+		<p>Forces the engine to use operating system mouse speed.</p>
+
+		<h3>-nohdmodels</h3>
+
+		<p>Disables support for HD models.</p>
+
+		<h3>-noip</h3>
+
+		<p>Disables TCP/IP.</p>
+
+		<p>This param is checked inside <i>NET_Init()</i> function.</p>
+
+		<h3>-noipx (windows only)</h3>
+
+		<p>Disables IPX support.</p>
+
+		<p>This param is checked inside <i>NET_Init()</i> function.</p>
+		
+		<h3>-nojoy</h3>
+		
+		<p><i>-nojoy</i> is part of the <i>safeargvs</i> array.</p>
+		
+		<p>This param is obsolete.</p>
+
+		<h3>-nolan</h3>
+		
+		<p><i>-nojoy</i> is part of the <i>safeargvs</i> array.</p>
+		
+		<p>This param is obsolete.</p>
+		
+		<h3>-nomaster</h3>
+		
+		<p>Disables master server communication.</p>
+
+		<p>This param is checked inside <i>CSteam3Server::Activate()</i> function.</p>
+		
+		<h3>-nomouse</h3>
+
+		<p><i>-nomouse</i> is part of the <i>safeargvs</i> array.</p>
+		
+		<p>This param is obsolete.</p>
+
+		<h3>-nomousegrab</h3>
+
+		<p>Sets <i>cl_mousegrab</i> cvar to false.</p>
+
+		<p>This param is checked inside <i>CL_Init()</i> function.</p>
+
+		<h3>-nomsaa</h3>
+
+		<p>Disables opengl MSA FBO support.</p>
+
+		<p>This param is checked inside <i>GL_SetMode()</i> function.</p>
+		
+		<h3>-noontop</h3>
+		
+		<p>Calls <i>SDL_SetHint("SDL_ALLOW_TOPMOST", "0");</i>.</p>
+
+		<p>This param is checked inside <i>CGame::CreateGameWindow()</i> function.</p>
+
+		<h3>-noquit (windows only)</h3>
+
+		<p>Disables quiting after playback has been stopped.</p>
+
+		<p>This param is checked inside <i>CL_FinishGameGauge()</i> function.</p>
+		
+		<h3>-nosound</h3>
+		
+		<p>Disables audio support.</p>
+		
+		<p><i>-nosound</i> is part of the <i>safeargvs</i> array.</p>
+
+		<p>This param is checked inside <i>S_Init()</i> function. (And more)</p>
+		
+		<h3>-num_edicts</h3>
+
+		<p>Presets number of edits when starting a server.</p>
+
+		<p>This param is checked inside <i>COM_EntsForPlayerSlots()</i> function. (And more)</p>
+
+		<h3>-particles</h3>
+		
+		<p>Sets the maximum amount of particles that can be rendered. This number is capped at 512 - inf.</p>
+		
+		<p>If the param isn't set, the <i>r_numparticles</i> is set to default, 2048. (2048 is defined as <i>MAX_PARTICLES</i>)</p>
+
+		<p>This param is checked inside <i>R_InitParticles()</i> function.</p>
+		
+		<h3>-port &lt;value&gt;</h3>
+		
+		<p>Sets cvar <i>hostport</i> to <i>value</i>.</p>
+
+		<p>This param is checked inside <i>NET_Init()</i> function.</p>
+		
+		<h3>-primarysound (windows only)</h3>
+		<h3>-reuse</h3>
+		
+		<p>Enables net multicasting. This enables to send IP datagrams to multiple receivers in a single transmission.</p>
+
+		<p>This param is checked inside <i>NET_IPSocket()</i> function.</p>
+		
+		<h3>-safe (windows only)</h3>
+		
+		<p>Enables all the params inside the <i>safeargvs[]</i> array. For more information about the array see <i>Safe parameter group</i>.</p>
+		
+		<h3>-simsound</h3>
+		
+		<p>Sets <i>fakedma</i> global variable to true. Otherwise this is set to false by default.</p>
+		
+		<p>This param is checked inside <i>S_Init()</i> function.</p>
+		
+		<h3>-snoforceformat (windows only)</h3>
+		
+		<h3>-sport &lt;value&gt;</h3>
+		
+		<p>Sets the steam port. By default this is 26900.</p>
+		
+		<p>This param is checked inside <i>CSteam3Server::Activate()</i> function.</p>
+		
+		<h3>-starttime</h3>
+		
+		<p>Can manually force the startup timestamp. If this isn't set, it's 0 by default.</p>
+
+		<p>This param is checked inside <i>Sys_InitFloatTime()</i> function.</p>
+		
+		<h3>-stdvid</h3>
+
+		<p><i>-dibonly</i> is part of the <i>safeargvs</i> array.</p>
+
+		<p>This parameter is obsolete and isn't used anywhere along the codebase.</p>
+
+		<h3>-steam</h3>
+
+		<p>Enables steam support. This function is set in many functions.</p>
+
+		<h3>-stretchaspect</h3>
+		
+		<p>Stretches current resolution to fit the monitor aspect rate. If this doesn't work for you, you might be probably missing some options in the graphics card driver.</p>
+		
+		<p>This param is checked inside <i>GL_SetMode()</i> and <i>CVideoMode_Common::DrawStartupGraphic</i> functions.</p>
+
+		<h3>-surfcachesize</h3>
+		
+		<p>This param seems obsolete and does nothing.</p>
+
+		<p>This param is checked inside <i>Sys_GetSurfaceCacheSize()</i> function.</p>
+
+		<h3>-toconsole</h3>
+		
+		<p>Unlike <i>-console</i>, this param only sets <i>console</i> cvar to true, but no console is shown at the startup.</p>
+
+		<p>This param is checked inside <i>Host_Init()</i> function.</p>
+
+		<h3>-wavonly (windows only)</h3>
+
+		<p>Enables WAV sound only. By default DSOUND (Direct Sound) is enabled. If DSOUND fails to initialize</p>
+
+		<h3>-window, -windowed (windows only), -startwindowed</h3>
+
+		<p>Forces the game to launch in windowed mode.</p>
+
+		<p>This param is checked inside <i>VideoMode_Create()</i> function.</p>	
+
+		<h3>-zone &lt;value&gt;</h3>
+
+		<p>Sets the amout for memory available for the zone allocation. This is another allocation system.</p>
+
+		<p>The value set here is in kilobytes and isn't capped.</p>
+
+		<p>This param is checked inside <i>Memory_Init()</i> function.</p>	
+
+		<h2>tier0 only macros</h2>
+
+		<h3>-noassert</h3>
+		<h3>-nocrashdialog</h3>
+		<h3>-debugbreak</h3>
+		<h3>-mpi_worker</h3>
+
+		<div class="Footer">
+			<div style="float: right">Copyright © 2022 oxiKKK</div>
+			<div style="float: left" id="LastUpdatedID"></div>
+			<div class="Icon">
+				<a href="https://www.youtube.com/c/OX666" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="red" class="bi bi-youtube"
+						viewBox="0 0 16 16">
+						<path
+							d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.007 2.007 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.007 2.007 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31.4 31.4 0 0 1 0 7.68v-.123c.002-.215.01-.958.064-1.778l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.007 2.007 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A99.788 99.788 0 0 1 7.858 2h.193zM6.4 5.209v4.818l4.157-2.408L6.4 5.209z" />
+					</svg></a>
+
+				<a href="https://github.com/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" class="bi bi-github"
+						viewBox="0 0 16 16">
+						<path
+							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+					</svg></a>
+				<a href="https://steamcommunity.com/id/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1b2838" class="bi bi-steam"
+						viewBox="0 0 16 16">
+						<path
+							d="M.329 10.333A8.01 8.01 0 0 0 7.99 16C12.414 16 16 12.418 16 8s-3.586-8-8.009-8A8.006 8.006 0 0 0 0 7.468l.003.006 4.304 1.769A2.198 2.198 0 0 1 5.62 8.88l1.96-2.844-.001-.04a3.046 3.046 0 0 1 3.042-3.043 3.046 3.046 0 0 1 3.042 3.043 3.047 3.047 0 0 1-3.111 3.044l-2.804 2a2.223 2.223 0 0 1-3.075 2.11 2.217 2.217 0 0 1-1.312-1.568L.33 10.333Z" />
+						<path
+							d="M4.868 12.683a1.715 1.715 0 0 0 1.318-3.165 1.705 1.705 0 0 0-1.263-.02l1.023.424a1.261 1.261 0 1 1-.97 2.33l-.99-.41a1.7 1.7 0 0 0 .882.84Zm3.726-6.687a2.03 2.03 0 0 0 2.027 2.029 2.03 2.03 0 0 0 2.027-2.029 2.03 2.03 0 0 0-2.027-2.027 2.03 2.03 0 0 0-2.027 2.027Zm2.03-1.527a1.524 1.524 0 1 1-.002 3.048 1.524 1.524 0 0 1 .002-3.048Z" />
+					</svg></a>
+				<a href="https://discordapp.com/users/363390198563864576/" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#404EED" class="bi bi-discord"
+						viewBox="0 0 16 16">
+						<path
+							d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.051.051 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.594.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.034.034 0 0 0-.02-.019Zm-8.198 7.307c-.789 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612Zm5.316 0c-.788 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612Z" />
+					</svg></a>
+			</div>
+		</div>
+
+	</div>
+</body>
+
+</html>

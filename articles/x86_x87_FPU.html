@@ -1,0 +1,193 @@
+<html>
+
+<head>
+	<title>oxiKKK's personal blog - x87 FPU</title>
+	
+	<meta name="author" content="oxiKKK">
+	<meta name="description" content="My personal blog post. A collection of articles about programming, hardware, cheating, reverse-engineering and more!">
+	<meta property="og:description" content="My personal blog post. A collection of articles about programming, hardware, cheating, reverse-engineering and more!">
+	<meta name="keywords" content="oxiKKK blog, oxiKKK, assembly, C, C++, GoldSrc, programming, low-level, operating systems, OS, hardware, reverse-engineering">
+
+	<link rel="stylesheet" href="../style.css">
+
+	<script src="../main.js"></script>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../index.html" style="float:right;">Index</a>
+		<a href="../about.html" style="float:left;">About</a>
+		<div class="Header">oxiKKK.github.io</div>
+	</div>
+
+	<div class="MiddleRow">
+		<div class="ArticleHeader">x87 FPU</div>
+
+		<h2>FPU</h2>
+
+		<p>The <i>floating-point-unit</i> is a separate module located inside the main CPU that is designed to work with floating-point numbers. The unit has it's own <i>program counter</i>, that's why it can perform computations in parallel to the main CPU unit.</p>
+
+		<p>The processing unit is designed to perform operations such as <i>addition, subtraction, multiplication, division, square root</i> and many more. Some FPUs are capable of doing advanced computations such as <i>trigonometric functions</i> or <i>transcendental functions</i>.</p>
+		
+		<h2>Register set</h2>
+		
+		<p>x87 is composed out of eight data registers (<i>r0-7 or x87r0-7</i>) and other special-use registers. (<i>status word, control word, tag word, program counter, last data (operand) pointer, and opcode register</i>).</p>
+
+		<center><img src="../assets/FPU_register_model.svg"></img></center>
+		
+		<h2>Data registers</h2>
+		
+		<p>x87 provides 80-bit <i>single-precision, double-precision <i>and</i> extended precision</i>. The user can chose between each mode as needed. For example, the extended precision model requires more computation time, but gives higher quality results. The single precision model requires less computation time, however it has limited quality.</p>
+		
+		<center><img src="../assets/FPU_data_registers.svg"></img></center>
+		
+		<p>When a value is loaded into the register, it is automatically converted into the floating-point format (only if it isn't already in that format).</p>
+		
+		<h3>Data types</h3>
+
+		<p>Types in which data registers can operate consists of, most-significant sign bit, an exponent which in single and double precision format also contains an integer part, and a fraction part which is usually the biggest. The registers are 80-bits total in side, however the single-precision model only covers up first 32-bits, and the other bits are untouched. Same with the double-precision model.</p>
+
+		<p>The targeted precision is selected through <i>precision-control (PC)</i> bits inside the control word (bits 8 and 9).</p>
+
+		<br>
+
+		<center><img src="../assets/FPU_Data_types.svg"></img></center>
+		
+		<h2>Data register stack</h2>
+		
+		<p>The FPU treat eight data registers as a register stack (<i>ST0 - ST7</i>). The register that is on the top of the stack is indicated inside the <i>TOP</i> 3-bit field status word. The register stack grows downwards. Load operations decrement the stack by one, load values into the new top-stack register. Store operations store the value from the current TOP register in memory and then increment TOP by one. The FPU load operation is equivalent to <i>x86 push</i>, and store operation to <i>x86 pop</i>.</p>
+		
+		<center><img src="../assets/FPU_Data_register_stack.svg" style="width: 20rem"></img></center>
+
+		<h2>Control word</h2>
+		
+		<p><i>Control word</i> is a bit field that contains flags such as <i>precision mode</i>, <i>rounding method</i>, <i>exception mask bits</i> and so on. The contents of the register can be loaded with the <i>FLDCW</i> instruction and stored in memory with the <i>FSTCW</i> instruction.</p>
+		
+		<p>When the FPU is initialized with the instruction <i>FINIT</i> then the <i>control word</i> is set to <i>0x37F</i> by default. In this mode the floating-point exceptions are masked, the rounding is set to nearest and the precision to 64-bits (<i>double-precision</i>).</p>
+		
+		<center><img src="../assets/FPU_Control_register.svg" style="width: 40rem"></img></center>
+
+		<h3>Rounding control</h3>
+
+		<p>The <i>rounding control (RC)</i> field (bits 10 & 11) controls how the results of arithmetic operations are rounded. </p>
+
+		<table>
+			<tr>
+				<th class="center"><b>Mode</b></th>
+				<th class="center"><b>Value</b></th>
+				<th class="center"><b>Description</b></th>
+			</tr>
+			<tr>
+				<th class="center"><b>Round to nearest</b></th>
+				<th class="center"><i>0b00</i></th>
+				<th>Rounded value is the closest to infinitely precise result. If the two values are equally close, then the even result is picked up (i.e. one with the least-significant bit set to zero). This option is set by default.</th>
+			</tr>
+			<tr>
+				<th class="center"><b>Round down towards -inf</b></th>
+				<th class="center"><i>0b01</i></th>
+				<th>The result is the one closest downwards -inf.</th>
+			</tr>
+			<tr>
+				<th class="center"><b>Round up towards inf</b></th>
+				<th class="center"><i>0b10</i></th>
+				<th>Rounded result is the one closest towards inf.</th>
+			</tr>
+			<tr>
+				<th class="center"><b>Round toward zero</b></th>
+				<th class="center"><i>0b11</i></th>
+				<th>Rounded result is the one closest to absolute zero.</th>
+			</tr>
+		</table>
+
+		<h3>Precision control</h3>
+
+		<p>The <i>precision control (PC)</i> field (bits 8 & 9) determines the precision model.</p>
+
+		<table>
+			<tr>
+				<th><b>Precision Model</b></th>
+				<th class="center"><b>Value</b></th>
+			</tr>
+			<tr>
+				<th>Single-precision</th>
+				<th class="center"><i>0b00</i></th>
+			</tr>
+			<tr>
+				<th>Unused</th>
+				<th class="center"><i>0b01</i></th>
+			</tr>
+			<tr>
+				<th>Double-precision</th>
+				<th class="center"><i>0b10</i></th>
+			</tr>
+			<tr>
+				<th>Double-extented-precision</th>
+				<th class="center"><i>0b11</i></th>
+			</tr>
+		</table>
+
+		<h3>Exception flags</h3>
+		
+		<p><i>Exception flags</i> specify the fault when performing arithmetic operations on floating-point values.</p>
+		
+		<h2>Status word</h2>
+		
+		<p>The <i>status register</i> indicates the current state of the FPU. The FPU sets the flags in this register to show the results of operations.</p>
+		
+		<center><img src="../assets/FPU_Status_register.svg" style="width: 50rem"></img></center>
+		
+		<h3>Condition code</h3>
+
+		<p>The four condition flags (<i>C0 through C3</i>) indicate the results of floating-point comparison and arithmetic operations.</p>
+
+		<h3>Top of stack (top) pointer</h3>
+
+		<p>A pointer to the data register that is currently at the top of the x87 register stack. Holds value from <i>0 to 7</i></p>
+
+		<h3>Exception flags</h3>
+
+		<p><i>Exception flags</i> specifies that one or more floating-point exceptions have been detected since the bits were last cleared.</p>
+
+		<h2>Tag word</h2>
+		
+		<p>Each register has a separate 2-bit flag <i>tag word</i> register called <i>x87TagWord</i> that indicates three states. If the value is valid, (<i>0b00</i>) zero, special (inf, NaN, unsupported) or empty (<i>0b11</i>). These eight two-bit registers together make a 16-bit <i>tag word</i>. Registers are called <i>x87_TW_X</i> where X is a 0-7 value.</p>
+
+		<p>When the FPU is initialized using <i>FINIT</i>, the <i>tag word</i> is set to <i>0xFFFF</i>, which sets the status for every register to <i>empty</i> respectively.</p>
+		
+		<div class="Footer">
+			<div style="float: right">Copyright © 2022 oxiKKK</div>
+			<div style="float: left" id="LastUpdatedID"></div>
+			<div class="Icon">
+				<a href="https://www.youtube.com/c/OX666" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="red" class="bi bi-youtube"
+						viewBox="0 0 16 16">
+						<path
+							d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.007 2.007 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.007 2.007 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31.4 31.4 0 0 1 0 7.68v-.123c.002-.215.01-.958.064-1.778l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.007 2.007 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A99.788 99.788 0 0 1 7.858 2h.193zM6.4 5.209v4.818l4.157-2.408L6.4 5.209z" />
+					</svg></a>
+
+				<a href="https://github.com/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" class="bi bi-github"
+						viewBox="0 0 16 16">
+						<path
+							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+					</svg></a>
+				<a href="https://steamcommunity.com/id/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1b2838" class="bi bi-steam"
+						viewBox="0 0 16 16">
+						<path
+							d="M.329 10.333A8.01 8.01 0 0 0 7.99 16C12.414 16 16 12.418 16 8s-3.586-8-8.009-8A8.006 8.006 0 0 0 0 7.468l.003.006 4.304 1.769A2.198 2.198 0 0 1 5.62 8.88l1.96-2.844-.001-.04a3.046 3.046 0 0 1 3.042-3.043 3.046 3.046 0 0 1 3.042 3.043 3.047 3.047 0 0 1-3.111 3.044l-2.804 2a2.223 2.223 0 0 1-3.075 2.11 2.217 2.217 0 0 1-1.312-1.568L.33 10.333Z" />
+						<path
+							d="M4.868 12.683a1.715 1.715 0 0 0 1.318-3.165 1.705 1.705 0 0 0-1.263-.02l1.023.424a1.261 1.261 0 1 1-.97 2.33l-.99-.41a1.7 1.7 0 0 0 .882.84Zm3.726-6.687a2.03 2.03 0 0 0 2.027 2.029 2.03 2.03 0 0 0 2.027-2.029 2.03 2.03 0 0 0-2.027-2.027 2.03 2.03 0 0 0-2.027 2.027Zm2.03-1.527a1.524 1.524 0 1 1-.002 3.048 1.524 1.524 0 0 1 .002-3.048Z" />
+					</svg></a>
+				<a href="https://discordapp.com/users/363390198563864576/" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#404EED" class="bi bi-discord"
+						viewBox="0 0 16 16">
+						<path
+							d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.051.051 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.594.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.034.034 0 0 0-.02-.019Zm-8.198 7.307c-.789 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612Zm5.316 0c-.788 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612Z" />
+					</svg></a>
+			</div>
+		</div>
+	</div>
+</body>
+
+</html>
