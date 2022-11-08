@@ -1,7 +1,25 @@
+// We use this on multiple places
+const monthNames = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
 // Calls the function on page load
 window.onload = function onPageLoad() {
   // Update the last modified timestamp and format it
   lastUpdatedTimestampRefresh();
+
+  resolveArticleAge();
 };
 
 // Returns formatted day (1st, 5th, 3rd, ...)
@@ -19,21 +37,6 @@ function getFormattedDay(day) {
 
 // Returns string with formatted date
 function getFormattedTime(date) {
-  const monthNames = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-
   return (
     getFormattedDay(date.getDate()) +
     " " +
@@ -48,4 +51,32 @@ function lastUpdatedTimestampRefresh() {
 
   document.getElementById("LastUpdatedID").innerHTML =
     "Site last updated on " + getFormattedTime(date);
+}
+
+// Appends 'NEW!' to the article date if the article is younger than 31 days.
+function resolveArticleAge() {
+  const elements = document.getElementsByClassName('ArticleDate');
+
+  for (let i = 0, length = elements.length; i < length; i++) {
+    const elm = elements[i];
+    // Assume the text content is already in a format that 
+    // the Date object expects.
+    const articleDate = new Date(elm.textContent);
+    const currentDate = new Date();
+
+    if (!articleDate) {
+      console.error(`Unknown article date: ${elm.textContent}`);
+      return;
+    }
+
+    const monthDiff = currentDate.getUTCMonth() - articleDate.getUTCMonth();
+    const dayDiff = currentDate.getUTCDate() - articleDate.getUTCDate();
+    const totalDays = monthDiff >= 1 ? dayDiff + (monthDiff * 31) : dayDiff;
+
+    console.log(`For ${articleDate}, the difference is ${totalDays} days.`);
+
+    if (totalDays <= 31) {
+      elm.textContent += " NEW!";
+    }
+  }
 }
