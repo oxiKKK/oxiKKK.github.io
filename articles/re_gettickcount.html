@@ -1,0 +1,247 @@
+<html>
+
+<head>
+	<title>oxiKKK's personal blog - GetTickCount() implementation on Windows</title>
+
+	<meta name="author" content="oxiKKK">
+	<meta name="description" content="My personal blog post. A collection of articles about programming, hardware, cheating, reverse-engineering and more!">
+	<meta property="og:description" content="My personal blog post. A collection of articles about programming, hardware, cheating, reverse-engineering and more!">
+	<meta name="keywords" content="oxiKKK blog, oxiKKK, assembly, C, C++, GoldSrc, programming, low-level, operating systems, OS, hardware, reverse-engineering">
+
+	<link rel="stylesheet" href="../style.css">
+
+	<script src="../main.js"></script>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../index.html" style="float:right;">Index</a>
+		<a href="../about.html" style="float:left;">About</a>
+		<div class="Header">oxiKKK.github.io</div>
+	</div>
+
+	<div class="MiddleRow">
+		<div class="ArticleHeader">GetTickCount() implementation on Windows</div>
+
+		<p>If you're a Windows programmer, you may be familiar with a routine exposed by the Win32 API called <i>GetTickCount()</i> or <i>GetTickCount64()</i>. This function is exposed to the user through <i>kernel32</i> module and it basically returns the amount of milliseconds since the system has booted.</p>
+
+		<p>As the description of the function tells, the function can be handy for timings, animations, transitions, basically every action where the time is crucial. However, how is this function actually implemented? Let's find out!</p>
+
+		<p>But first, let's dive into a kernel structure that contains some crucial data that <i>GetTickCount()</i> uses.</p>
+
+		<h2>KUSER_SHARED_DATA</h2>
+
+		<p>As you may know, accessing data that is located inside kernel address space from user space cannot be done so easily. For these reasons there's a predefined <i>KUSER_SHARED_DATA</i> struct. As the name suggests, its main purpose is to share global kernel data with user-space programs.</p>
+
+		<p>At some point, kernel allocates a single page at a fixed location dedicated for this data only. And thus, applications from user space can locate it easily. On 32-bit Windows the location is <i>0x7FFE0000</i>. This means, that a perfectly valid code can be:</p>
+
+<code>auto kusd = (KUSER_SHARED_DATA* const)0x7FFE0000;
+</code>
+
+		<p>And then, believe me or not however, following code outputs <i>'C:\Windows'</i>:</p>
+
+		<code>wprintf((wchar_t*)(0x7FFE0030));
+</code>
+
+		<p>Why? It's simple! If you look at the structure declaration, you can see that there's a <i>NtSystemRoot</i> array of type <i>WCHAR</i>.</p>
+
+
+<code>typedef struct _KUSER_SHARED_DATA {
+  ...
+  WCHAR NtSystemRoot[ 260 ]; // At offset 0x30
+  ...
+} KUSER_SHARED_DATA, *PKUSER_SHARED_DATA;
+</code>
+
+		<p>As stated before, the base address of this page (or struct) is <i>0x7FFE0000</i> and plus the 0x30 offset of the <i>NtSystemRoot</i> field we get the address on which the field data lies, i.e. pointer to <i>NtSystemRoot</i>. And since the base address never changes, we can access this fixed location anytime we want. Simple as that!</p>
+
+		<p>Now, we need to know that this structure exists because it contains two more members that are crucial for the correct functioning of <i>GetTickCount()</i>.</p>
+
+		<h2>TickCount & TickCountMultiplier</h2>
+
+		<p>So these two, <i>TickCount</i> and <i>TickCountMultiplier</i> are the only things that <i>GetTickCount()</i> needs in order to work properly, that's it. Tick count and its multiplier are inside the <i>KUSER_SHARED_DATA</i> structure at offsets 0x320 and 0x4. So, what are they about and what is their purpose?</p>
+
+		<p>As the name of <i>TickCountMultiplier</i> suggests, it is a multiplier which is used to multiply <i>TickCount</i> that is constantly incrementing by a rate of 100ns-units based increment based on hardware clock. More on that later.</p>
+
+		<p>If we dive into the kernel itself, the 64-bit <i>kernel32.dll</i> module, and we see the pseudo code for <i>GetTickCountKernel32()</i> function i.e. in IDA, we can see following:</p>
+
+<code>DWORD __stdcall GetTickCountKernel32()
+{
+  return MEMORY[0x7FFE0320] * (uint64_t)MEMORY[0x7FFE0004] >> 24;
+}</code>
+
+		<p>Things start to make sense. Remember when we were talking about offsets of <i>TickCount</i> and <i>TickCountMultiplier</i>? They're here!</p>
+
+<code>MEMORY[0x7FFE0<div class="highlight">320</div>] * (uint64_t)MEMORY[0x7FFE000<div class="highlight">4</div>] >> 24;
+</code>
+
+		<p>And thus, these two are being multiplied together as we mentioned before. And the code above is identical to:</p>
+
+<code>kusd->TickCountQuad * (uint64_t)kusd->TickCountMultiplier >> 24;</code>
+
+		<h3>Why shifting to the right by 24?</h3>
+
+		<p>The <i>TickCountMultiplier</i> is a 32-bit wide value. It is composed out of 24-bit wide fraction and 8-bit integer part. This is done because as you may know, in kernel-mode, there aren't any ordinary floating-point numbers, nor operations with them, done on the FPU. Basically the FPU is disabled completely.</p>
+
+		<p>However, the multiplier is casted to a uint64_t and the result of the multiplication of these two is also a 64-bit wide value. But still, after these two values are multiplied together, the fraction remains. In order to get rid of the 24-bit fraction, we shift it off. Then we're left with 32-bit wide integer part.</p>
+
+		<p>Since the returned value is only 32-bit wide, the timer eventually runs out after a while. To be more exact, after 2^32 milliseconds, i.e. 49.71 days. Then the function starts to count from zero again. And of course, in order to prevent such overflow, you can always use <i>GetTickCount64()</i>, which takes much longer to overflow.</p>
+
+		<h2>Custom implementation</h2>
+
+		<p>If we'd like to implement the function for ourself, that'd be pretty simple, right? We wouldn't do much more work than copying the pseudo code into our code and bang! We have a fully working <i>GetTickCount()</i> implementation in our code!</p>
+
+<code>auto TickCountPtr = (uint64_t* const)(0x7FFE0320); // TickCountQuad
+auto TickCountMultiplierPtr = (uint32_t* const)(0x7FFE0004); // TickCountMultiplier
+
+// Custom implementation for GetTickCount() function.
+uint32_t GetTickCountImpl()
+{
+  return *TickCountPtr * (uint64_t)(*TickCountMultiplierPtr) >> 24;
+}</code>
+
+		<p>Simple as that! And now, if we test our implementation against original <i>GetTickCount</i> function we get following results:</p>
+
+<code>while (true)
+{
+  printf("%10lu %10lu\n", GetTickCount(), GetTickCountImpl());
+  Sleep(1);
+}
+
+// Output:
+137151593  137151593
+137151609  137151609
+137151625  137151625
+137151640  137151640
+137151656  137151656
+137151671  137151671
+137151687  137151687
+137151703  137151703
+137151718  137151718
+... // It's the same every time!</code>
+
+		<p>So, this is the implementation of the function. Only one line long implementation! Now sure, one line function doesn't seem much complicated but, the logic why this even work lies even deeper inside the kernel.</p>
+		
+		<p>The code that is responsible for actually setting the tick count and its multiplier lies very deep inside the kernel core... inside the <i>ntoskrnl.exe</i>.</p>
+
+		<h2>Further implementation details</h2>
+
+		<p>In the second part of the article I'd like to focus on the internal implementation of <i>TickCount</i> and <i>TickCountMultiplier</i>, how they're actually calculated or what they're.</p>
+
+		<h3>TickCountMultiplier</h3>
+
+		<p>Let's start with <i>TickCountMultiplier</i>. So, this field from <i>KUSER_SHARED_DATA</i> is constant, it doesn't change, ever. And because of that, and due to optimizations, it is pre-calculated inside the kernel at startup. To be more exact, inside <i>InitBootProcessor()</i> routine that is called at the very beginning of windows startup inside <i>ntoskrnl.exe</i>:</p>
+
+<code>...
+ExpTickCountMultiplier = ExComputeTickCountMultiplier(KeMaximumIncrement);
+SharedUserData->TickCountMultiplier = ExpTickCountMultiplier;
+...</code>
+
+		<p>As we can see, it is all happening inside <i>ExComputeTickCountMultiplier()</i> routine. The <i>KeMaximumIncrement</i> argument passed is architecture-dependent but in general, it is a <i>clock increment</i> value in 100ns units. Nonetheless, the <i>TickCount</i> clock basically represents 10 100ns clock increments (1ms / 100ns = 10 increments).</p>
+
+		<h3>ExComputeTickCountMultiplier()</h3>
+
+		<p>Anyway, let's dive into <i>ExComputeTickCountMultiplier()</i> function. The function itself is simple and its body can be divided into three groups:</p>
+
+		<li>From the <i>KeMaximumIncrement</i> compute the 8-bit integer part.</li>
+		<li>From the <i>KeMaximumIncrement</i> compute the 24-bit binary fraction part.</li>
+		<li>From the integer and fraction part compute the final result.</li>
+
+		<p>let's now cover these three steps in detail. Starting with a general description of what happens with <i>KeMaximumIncrement</i> as input.</p>
+
+		<p>And also, it is important to note that the <i>KeMaximumIncrement</i> is a 32-bit integer that has an integer and a fraction part. The integer part covers 8 bits and the fraction part remaining 24 bits.</p>
+
+		<h3>Step 1</h3>
+
+		<p>As the first step, the integer part is computed by dividing <i>KeMaximumIncrement</i> by 10,000 (100ns * 10,000ns is 1ms). Using this formula, it is clear that we're getting the number of milliseconds, rather than nanoseconds. Let's store that into variable <i>IntegerPart</i>.</p>
+
+<code>ULONG IntegerPart = KeMaximumIncrement / (10 * 1000);</code>
+
+		<h3>Step 2</h3>
+
+		<p>As the second step, the remainder is computed. Remember that the <i>KeMaximumIncrement</i> is a 'floating-point' value with base and fraction. We will store it inside variable <i>Remainder</i>.</p>
+
+		<p>Next up is a algorithm that calculates the binary fraction from the <i>Remainder</i>. The rules are as following. Multiply the fractioned remainder by two (left shift) and if the result is bigger than one, store 1 and subtract 1 from the result, store 0 otherwise. Repeat 24 times in this case, since we're calculating up to 24-bit precision. The result of stored ones and zeros then pack together into one sequence.</p>
+
+		<p>As a demonstration, let's take decimal number 6789 as <i>Remainder</i> and make fraction from it - 0.6789 using the same algorithm.</p>
+
+<code>0.6789 * 2   =   1.3578   1    |
+0.3578 * 2   =   0.7156   0    |
+0.7156 * 2   =   1.4312   1    |
+0.4312 * 2   =   0.8624   0    |
+0.8624 * 2   =   1.7248   1    |
+0.7248 * 2   =   1.4496   1    |
+0.4496 * 2   =   0.8992   0    |
+0.8992 * 2   =   1.7984   1    |
+0.7984 * 2   =   1.5968   1    V
+24 times total...
+
+The result would be:
+0.6789 in decimal is 0.101011011... in binary</code>
+
+		<p>The C equivalent would then be:</p>
+
+<code>ULONG FractionPart = 0;
+for (int n = 0; n < 24; n++)
+{
+  FractionPart <<= 1; // Move to next bit (* 2)
+  Remainder <<= 1;
+
+  // Now, we aren't checking if the value is bigger 
+  // than 1, but rather if it is bigger than 10k.
+  if (Remainder >= (10 * 1000))
+  {
+    Remainder -= (10 * 1000); // Subtract 10k instead of 1..
+    FractionPart |= 1; // Add 1 bit. Otherwise none (0) would be added.
+  }
+}</code>
+
+		<p>Now we have the binary fraction completely calculated and we're near the end! Now the only thing that remains is to add the fraction part to the integer part.</p>
+
+		<h3>Part 3</h3>
+
+		<p>As stated before, the only thing left is to combine the fraction part together with the integer part:</p>
+
+<code>ULONG Result = (IntegerPart << 24) | FractionPart;</code>
+
+		<p>And this is it! This is how the multiplier is calculated. In summary, a <i>KeMaximumIncrement</i> is supplied. It is a <i>clock increment</i> value in 100ns units. This value is then converted to the integer millisecond part. Then, the 24-bit binary fraction is computed for every bit. In the end, those two values are combined together to form the final multiplier. Simple as that!</p>
+
+		<h2>TickCount</h2>
+
+		<p>The tick count is, as the name says, basically a <i>tick count</i>. A 'tick' is an update in internal system time code that is represented in 100 nanosecond units. This increment is basically multiplied by a constant (or a multiplier, e.g. <i>TickCountMultiplier</i>) that converts it to a millisecond tick count.</p>
+
+		<p>The tick count is incremented inside <i>KiUpdateSystemTime()</i> function. And to be honest, there's nothing much to say about this. It is just a variable that is constantly incrementing each 100ns tick.</p>
+
+		<h2>Conclusion</h2>
+
+		<p>So, as you can see, the implementation of <i>GetTickCount()</i> is pretty simple if you know, how it works. I wrote this article because I found the ínternal implementation of the function very interesting. The way it works and how it works. Also, the way that the function works by simply multiplying two values together, forming a 1ms tick timer.</p>
+
+		<div class="Footer">
+			<div style="float: right">Copyright © 2022 oxiKKK</div>
+			<div style="float: left" id="LastUpdatedID"></div>
+			<div class="Icon">
+				<a href="https://www.youtube.com/c/OX666" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="red" class="bi bi-youtube" viewBox="0 0 16 16">
+						<path d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.007 2.007 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.007 2.007 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31.4 31.4 0 0 1 0 7.68v-.123c.002-.215.01-.958.064-1.778l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.007 2.007 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A99.788 99.788 0 0 1 7.858 2h.193zM6.4 5.209v4.818l4.157-2.408L6.4 5.209z" />
+					</svg></a>
+
+				<a href="https://github.com/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" class="bi bi-github" viewBox="0 0 16 16">
+						<path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+					</svg></a>
+				<a href="https://steamcommunity.com/id/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1b2838" class="bi bi-steam" viewBox="0 0 16 16">
+						<path d="M.329 10.333A8.01 8.01 0 0 0 7.99 16C12.414 16 16 12.418 16 8s-3.586-8-8.009-8A8.006 8.006 0 0 0 0 7.468l.003.006 4.304 1.769A2.198 2.198 0 0 1 5.62 8.88l1.96-2.844-.001-.04a3.046 3.046 0 0 1 3.042-3.043 3.046 3.046 0 0 1 3.042 3.043 3.047 3.047 0 0 1-3.111 3.044l-2.804 2a2.223 2.223 0 0 1-3.075 2.11 2.217 2.217 0 0 1-1.312-1.568L.33 10.333Z" />
+						<path d="M4.868 12.683a1.715 1.715 0 0 0 1.318-3.165 1.705 1.705 0 0 0-1.263-.02l1.023.424a1.261 1.261 0 1 1-.97 2.33l-.99-.41a1.7 1.7 0 0 0 .882.84Zm3.726-6.687a2.03 2.03 0 0 0 2.027 2.029 2.03 2.03 0 0 0 2.027-2.029 2.03 2.03 0 0 0-2.027-2.027 2.03 2.03 0 0 0-2.027 2.027Zm2.03-1.527a1.524 1.524 0 1 1-.002 3.048 1.524 1.524 0 0 1 .002-3.048Z" />
+					</svg></a>
+				<a href="https://discordapp.com/users/363390198563864576/" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#404EED" class="bi bi-discord" viewBox="0 0 16 16">
+						<path
+							d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.051.051 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.594.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.034.034 0 0 0-.02-.019Zm-8.198 7.307c-.789 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612Zm5.316 0c-.788 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612Z" />
+					</svg></a>
+			</div>
+		</div>
+	</div>
+</body>
+
+</html>
