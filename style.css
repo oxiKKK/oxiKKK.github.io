@@ -50,7 +50,7 @@ body {
 .MiddleRow .ArticleHeader {
 	margin-top: 5px;
 	margin-bottom: 10px;
-	font-size: 26px;
+	font-size: 28px;
 	font-weight: bold;
 	text-align: center;
 	width: 100%;
@@ -78,13 +78,14 @@ body {
 .MiddleRow .ArticleLink .ArticleDesc {
 	font-size: 14px;
 	padding-left: 20px;
-	line-height: 20px;
+	line-height: 15px;
 }
 
 /*READ-MORE link after article description*/
 .MiddleRow .ArticleLink .ArticleReadMore {
 	font-size: 14px;
 	padding-left: 20px;
+	line-height: 17px;
 	text-transform: uppercase;
 	color: cornflowerblue;
 }
@@ -93,6 +94,7 @@ body {
 	text-decoration: none;
 	color: black;
 	transition: color 0.2s;
+	font-size: 21px;
 }
 
 .MiddleRow .ArticleLink a:hover{
