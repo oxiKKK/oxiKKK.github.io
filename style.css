@@ -6,7 +6,6 @@ body {
 /*Top row for index, about, ...*/
 .TopRow {
 	overflow: hidden;
-	position: fixed;
 	background-color: #eeeeee;
 	width: 100%;
 	border-bottom: solid grey 1px;
@@ -31,7 +30,8 @@ body {
 .TopRow .Header {
 	text-align: center;
 	padding: 5px 30px;
-	font-size: 30px;
+	font-size: 1.3rem;
+	line-height: 40px;
 }
 
 /*The middle row where all the contents is*/
@@ -39,7 +39,6 @@ body {
 	margin: auto;
 	max-width: 50em;
 	padding: 16px;
-	padding-top: 50px;
 	overflow-x: hidden;
 	word-wrap: break-word;
 	background-color: #eeeeee;
