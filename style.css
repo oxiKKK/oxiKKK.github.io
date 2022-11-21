@@ -115,6 +115,19 @@ body {
 	margin-left: calc(50% - ((20px - 3px) * 4));
 }
 
+/*Perfect-fit image*/
+.MiddleRow img {
+	width: auto;
+    height: auto;
+	width: 50%;
+    min-width: 100%;
+    min-height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+	overflow-x: scroll;
+	align
+}
+
 /*Used as a code snippet with raw whitespace formatting*/
 code {
 	padding-right: 16px;

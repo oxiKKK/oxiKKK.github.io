@@ -4,14 +4,14 @@
 	<!-- Primary Meta Tags -->
 	<title>GoldSource SVC Parsing Architecture</title>
 	<meta name="author" content="oxiKKK">
-	<meta name="title" content="GoldSource SVC Parsing Architecture">
+	<meta name="title" content="GoldSrc SVC Parsing Architecture">
 	<meta name="description" content="Read about how the GS engine handles communication between client and server, how it receives data and how it is able to do this via defined protocol.">
 	<meta name="keywords" content="oxiKKK blog, oxiKKK, assembly, C, C++, GoldSrc, programming, low-level, operating systems, OS, hardware, reverse-engineering">
 
 	<!-- Open Graph / Facebook -->
 	<meta property="og:type" content="article">
 	<meta property="og:url" content="https://oxikkk.github.io/articles/goldsrc_svc_parsing_architecture">
-	<meta property="og:title" content="GoldSource SVC Parsing Architecture">
+	<meta property="og:title" content="GoldSrc SVC Parsing Architecture">
 	<meta property="og:description" content="Read about how the GS engine handles communication between client and server, how it receives data and how it is able to do this via defined protocol.">
 	<meta property="og:site_name" content="oxiKKK.github.io" />
 
@@ -30,7 +30,7 @@
 	</div>
 
 	<div class="MiddleRow">
-		<div class="ArticleHeader">GoldSource SVC Parsing Architecture</div>
+		<div class="ArticleHeader">GoldSrc SVC Parsing Architecture</div>
 
 		<p>A SVC (SerVer Command) parsing system is a system used inside the GoldSource engine for one way communication between the server and the client. The code is responsible for dispatching several routines (messages) that the server can send to client at any moment during play time. Both sending and parsing messages must strictly follow a well defined protocol (also called protocol 48 in the newest version of the game) that both the server and the client must use in order to prevent message buffer read/write failures.</p>
 
@@ -40,7 +40,7 @@
 		
 		<p>When the server wants to send a specific command to the client, he prepares a new SVC message by writing the command number as a first byte of the actual message. After the command number, the actual data is written.</p>
 
-		<center><img src="../assets/goldsrc_svc_message.svg" style="max-width: 80%;max-height: 80%"></img></center>
+		<img src="../assets/goldsrc_svc_message.svg"></img>
 
 		<p>Each SVC has a variable amount of data to it. Some SVC's don't have any data associated to it, they just inform about some event/notification or something similiar. Others may contain huge payloads to transfer over the network.</p>
 
@@ -56,7 +56,7 @@
 
 		<p>What happens if the server sends something that the client doesn't expect? <i>Bad things</i>. In general, a read failure would occur and that's a instant disconnect from the server. Knowing this, we must assure that on the client side we read the data in the exact same order as the server meant us to read it, otherwise a "bad read" could occur.</p>
 
-		<center><img src="../assets/goldsrc_svc_badread.svg" style="max-width: 80%;max-height: 80%"></img></center>
+		<img src="../assets/goldsrc_svc_badread.svg"></img>
 		
 		<h1>How stuff works programatically</h1>
 
@@ -66,7 +66,7 @@
 
 		<p>There are two types of commands that will be dispatched/parsed. A <i>SVC command</i> and a <i>UserMSG command</i>. A SVC command is targeted for engine code, meaning that it is being dispatched inside the engine. The another one, UserMSG command is being handled inside the client dll. Client dlls uses this form of communication. They are dispatched as following.</p>
 		
-		<center><img src="../assets/goldsrc_svc_parseservermessage.svg" style="max-width: 80%;max-height: 80%"></img></center>
+		<img src="../assets/goldsrc_svc_parseservermessage.svg"></img>
 
 		<h2>SVC message table</h2>
 

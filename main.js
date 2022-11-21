@@ -64,7 +64,7 @@ function resolveArticleAge() {
     const articleDate = new Date(elm.textContent);
     const currentDate = new Date();
 
-    if (!articleDate) {
+    if (isNaN(articleDate)) {
       console.error(`Unknown article date: ${elm.textContent}`);
       return;
     }
@@ -73,7 +73,7 @@ function resolveArticleAge() {
     const dayDiff = currentDate.getUTCDate() - articleDate.getUTCDate();
     const totalDays = monthDiff >= 1 ? dayDiff + (monthDiff * 31) : dayDiff;
 
-    console.log(`For ${articleDate}, the difference is ${totalDays} days.`);
+    // console.log(`For ${articleDate}, the difference is ${totalDays} days.`);
 
     if (totalDays <= 31) {
       elm.textContent += " NEW!";

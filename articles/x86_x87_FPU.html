@@ -42,13 +42,13 @@
 		
 		<p>x87 is composed out of eight data registers (<i>r0-7 or x87r0-7</i>) and other special-use registers. (<i>status word, control word, tag word, program counter, last data (operand) pointer, and opcode register</i>).</p>
 
-		<center><img src="../assets/FPU_register_model.svg"></img></center>
+		<img src="../assets/FPU_register_model.svg"></img>
 		
 		<h2>Data registers</h2>
 		
 		<p>x87 provides 80-bit <i>single-precision, double-precision <i>and</i> extended precision</i>. The user can chose between each mode as needed. For example, the extended precision model requires more computation time, but gives higher quality results. The single precision model requires less computation time, however it has limited quality.</p>
 		
-		<center><img src="../assets/FPU_data_registers.svg"></img></center>
+		<img src="../assets/FPU_data_registers.svg"></img>
 		
 		<p>When a value is loaded into the register, it is automatically converted into the floating-point format (only if it isn't already in that format).</p>
 		
@@ -60,13 +60,13 @@
 
 		<br>
 
-		<center><img src="../assets/FPU_Data_types.svg"></img></center>
+		<img src="../assets/FPU_Data_types.svg"></img>
 		
 		<h2>Data register stack</h2>
 		
 		<p>The FPU treat eight data registers as a register stack (<i>ST0 - ST7</i>). The register that is on the top of the stack is indicated inside the <i>TOP</i> 3-bit field status word. The register stack grows downwards. Load operations decrement the stack by one, load values into the new top-stack register. Store operations store the value from the current TOP register in memory and then increment TOP by one. The FPU load operation is equivalent to <i>x86 push</i>, and store operation to <i>x86 pop</i>.</p>
 		
-		<center><img src="../assets/FPU_Data_register_stack.svg" style="width: 20rem"></img></center>
+		<img src="../assets/FPU_Data_register_stack.svg"></img>
 
 		<h2>Control word</h2>
 		
@@ -74,7 +74,7 @@
 		
 		<p>When the FPU is initialized with the instruction <i>FINIT</i> then the <i>control word</i> is set to <i>0x37F</i> by default. In this mode the floating-point exceptions are masked, the rounding is set to nearest and the precision to 64-bits (<i>double-precision</i>).</p>
 		
-		<center><img src="../assets/FPU_Control_register.svg" style="width: 40rem"></img></center>
+		<img src="../assets/FPU_Control_register.svg"></img>
 
 		<h3>Rounding control</h3>
 
@@ -143,7 +143,7 @@
 		
 		<p>The <i>status register</i> indicates the current state of the FPU. The FPU sets the flags in this register to show the results of operations.</p>
 		
-		<center><img src="../assets/FPU_Status_register.svg" style="width: 50rem"></img></center>
+		<img src="../assets/FPU_Status_register.svg" style="width: 50rem"></img>
 		
 		<h3>Condition code</h3>
 
