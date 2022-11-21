@@ -39,10 +39,9 @@ body {
 	margin: auto;
 	max-width: 50em;
 	padding: 16px;
-	overflow-x: hidden;
+	overflow: hidden;
 	word-wrap: break-word;
 	background-color: #eeeeee;
-	box-sizing: border-box; /* Disables horizontal scrollbar when width set to 100%*/
 }
 
 /*Used as article title*/
