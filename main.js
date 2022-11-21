@@ -50,7 +50,7 @@ function lastUpdatedTimestampRefresh() {
   let date = new Date(document.lastModified);
 
   document.getElementById("LastUpdatedID").innerHTML =
-    "Site last updated on " + getFormattedTime(date);
+    "Updated on " + getFormattedTime(date);
 }
 
 // Appends 'NEW!' to the article date if the article is younger than 31 days.
