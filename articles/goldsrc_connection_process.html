@@ -1,0 +1,339 @@
+<html>
+
+<head>
+	<!-- Primary Meta Tags -->
+	<title>GoldSrc the server connection process</title>
+	<meta name="author" content="oxiKKK">
+	<meta name="title" content="GoldSrc the server connection process">
+	<meta name="description" content=">An in depth description of how connecting to a remote server works internally on the GoldSource engine.">
+	<meta name="keywords" content="oxiKKK blog, oxiKKK, assembly, C, C++, GoldSrc, programming, low-level, operating systems, OS, hardware, reverse-engineering">
+
+	<!-- Open Graph / Facebook -->
+	<meta property="og:type" content="article">
+	<meta property="og:url" content="https://oxikkk.github.io/articles/x86_x87_FPU">
+	<meta property="og:title" content="GoldSrc the server connection process">
+	<meta property="og:description" content=">An in depth description of how connecting to a remote server works internally on the GoldSource engine.">
+	<meta property="og:site_name" content="oxiKKK.github.io" />
+
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+	<link rel="stylesheet" href="../style.css">
+
+	<script src="../main.js"></script>
+</head>
+
+<body>
+	<div class="TopRow">
+		<a href="../index.html" style="float:right;">Index</a>
+		<a href="../about.html" style="float:left;">About</a>
+		<div class="Header">oxiKKK.github.io</div>
+	</div>
+
+	<div class="MiddleRow">
+		<div class="ArticleHeader">GoldSrc the server connection process</div>
+
+		<p>In this article I'd like to discuss the good old GS engine and the way it handles communication between client and server when acquiring connection. This will be a loong dive but, also a very interesting one. So stay till the end if you can! :)</p>
+
+		<h2>First things first</h2>
+
+		<p>So, first let's discuss how do you actually connect to a server? Well, there are two options only. Either through the console or through the Server Browser. In both of these ways a "connect" command is scheduled and later executed.</p>
+		
+		<p>To be more precise, to schedule a regular console command, the <i>Cbuf_AddText()</i> function can be used. This function takes the input command and places it together with other commands. The command queue is basically a big continuous array of characters containing all scheduled commands/cvars to be later executed. At this point, no commands are processed in any way. Parsing and the overall processing of each command is done at dispatch, i.e. at execution.</p>
+
+		<p>So throughout the frame, commands are added to the list and at some point in the time, all commands in the queue are executed at once.</p>
+
+		<img src="../assets/goldsrc_cmd_execution.svg" style="min-width: 50%;"></img>
+		
+		<p>All commands have a callback routine associated to it. For example the "connect" cmd has the <i>CL_Connect_f()</i> function. Inside <i>Cmd_ExecuteStringWithPrivilegeCheck()</i> (called by <i>Cbuf_Execute()</i>) all commands are executed and thus also their callback routine is called.</p>
+
+<code>// Inside Cmd_ExecuteStringWithPrivilegeCheck():
+...
+cmd->function(); // Dispatch callback function associated with this command
+</code>
+
+		<p>When the "connect" command is processed, the callback routine associated to this command is called, i.e. <i>CL_Connect_f()</i>. So at this point, we're inside <i>CL_Connect_f()</i>. Let's now discuss what is happening there.</p>
+
+		<h2>Inside CL_Connect_f()</h2>
+		
+		<p>The generic description of this function would be that it <i>"Prepares global data for connection to a server"</i>. From the description we can tell that it will clearly reset/re-initialize some global data associated with connecting to a server, so that a new connection can start right away. </p>
+		
+		<p>Part of its execution is a call to <i>CL_Disconnect()</i>. This function also resets more global data, but also dynamic data such as stopping all sounds, deallocating entities, clearing event queues, decals, resources, etc. Apart from resetting more data, but only if already connected to a server, it informs the remote server about our disconnect and terminates the connection between us and the steam game server.</p>
+
+		<p>To sum it up, let's divide <i>CL_Connect_f</i> into 5 parts.</p>
+
+		<img src="../assets/goldsrc_cl_connect_f.svg" style="min-width: 50%;"></img>
+
+		<p>So now, let's discuss these individual steps.</p>
+
+		<h3>1. CS and CZERO</h3>
+
+		<p>If we're playing Counter-Strike or CS:Condition Zero, some servers may abuse the connect command. Server can use a SVC to forward commands to clients using the <i>"svc_stufftext"</i> SVC. If a "connect" command is send by the server, inside <i>CL_Connect_f()</i> we register that and exit execution with following error in the console.</p>
+		
+<code>if ((g_bIsCStrike || g_bIsCZero) && cmd_source != src_command)
+{
+    Con_Printf("Connect only works from the console.\n");
+    return;
+}</code>
+
+		<p>However, if playing Half-Life, TFC, or other, this won't happen.</p>
+
+		<h3>2. Stopping a demo playback</h3>
+
+		<p>This step is straightforward. If we're watching a demo playback, stop it.</p>
+
+		<h3>3. CL_Disconnect()</h3>
+
+		<p><i>CL_Disconnect()</i> as mentioned before, resets all dynamic & global data + informs the server with our disconnection (if already connected) and terminates the connection between us and the remote.</p>
+		
+		<h3>4. Progress bar</h3>
+
+		<p>Progress bar is updated so the right message renders in the dialog. If it wasn't rendered already, start rendering the progress bar.</p>
+
+		<h3>5. Reset global data</h3>
+
+		<p>First of all, <i>cls.state</i> is updated to <i>ca_connecting</i>. This will inform other functions that are executed after this command is dispatched or next frame, that we want to connect to a server. With it, <i>cls.servername</i> is filled with the ip address of the server we want to connect to. This is again to store this information globally, so that other functions can pick up this when they'll establish the connection later on.</p>
+
+		<p>Then other stuff such as the connection time, the amount of connection retries, if the server is VAC-secured, and more are reset as well. All of these will be set during the connection to a server, in other functions, when the connection is established.</p>
+
+		<h2>After CL_Connect_f()</h2>
+
+		<p>Now we have executed <i>CL_Connect_f()</i> and so, what now? We said before that inside this function we only setup the connection, but we don't actually start it yet. As stated before, there's two pieces of global data that will be changed by this function. That is, <i>cls.state</i> to <i>ca_connecting</i> and <i>cls.servername</i> to the remote ip address.</p>
+
+		<p>By setting this two pieces of global data, functions that are meant to start the connection will now actually start it as soon as they're called. Let's now talk about these functions.</p>
+
+		<h2>CL_CheckForResend()</h2>
+
+		<p>Now, when <i>cls.state</i> is set to <i>ca_connecting</i>, this function will actually continue its execution as follows:</p>
+
+<code>void CL_CheckForResend()
+{
+    ...
+    if (cls.state != ca_connecting)
+        return; // The execution would normally stop here 
+                // when the function is called every frame.
+    
+    // However, after CL_Connect_f() is called, cls.state is set to ca_connecting. 
+    // Hence, we continue our execution in this function.
+    ...
+}</code>
+
+		<p>This function, <i>CL_CheckForResend()</i>, sends a challenge to the server about that we want to connect. A <i>challenge</i> is a request or a command send to the server by client. The server processes this request and replies with a <i>response</i>, that we'll then read and process next frame. In this situation, we request a following challenge. This message/data is then transferred via a packet straight to the server.</p>
+
+<code>255255255255getchallenge steam\n</code>
+
+		<p>We're basically requesting an authentication via the steam protocol (number 0x3). And by the way, there are three valid authentication protocols:</p>
+
+		<table>
+			<tr>
+				<th class="center"><b>Name</b></th>
+				<th class="center"><b>Value</b></th>
+				<th class="center"><b>Description</b></th>
+			</tr>
+			<tr>
+				<th class="center"><b>Authentication certificate</b></th>
+				<th class="center"><i>0x01</i></th>
+				<th>Connection from client is using a WON authenticated certificate.</th>
+			</tr>
+			<tr>
+				<th class="center"><b>Hashed key</b></th>
+				<th class="center"><i>0x02</i></th>
+				<th>Connection from client is using hashed CD key because WON comm. channel was unreachable.</th>
+			</tr>
+			<tr>
+				<th class="center"><b>Steam</b></th>
+				<th class="center"><i>0x03</i></th>
+				<th>Steam certificates.</th>
+			</tr>
+		</table>
+
+		<p>I don't know the challenge syntax for the WON protocol. Nonetheless, on the newest steam build, we tell the server that we want to authenticate via the steam protocol.</p>
+
+		<h2>After challenge request</h2>
+
+		<p>So after the challenge has been forwarded to the server, we wait till the next frame, where we'll get the response. Actually at this point, we'll finally start reading messages (packets) from the server inside <i>CL_ReadPackets()</i>. Up till this point, we weren't reading anything, because we weren't connected to any server. But after we've contacted the server with our challenge, the server must respond. This is where all packets received from the server are fetched every frame:</p>
+
+<code>void CL_ReadPackets()
+{
+  // ...code
+  
+  while (CL_GetMessage()) // Fetch all incomming packets from the remote.
+  {
+    // Process all messages we get from the server. 
+    // This also includes parsing SVCs (SerVer Commands) after the connection is established.
+  }
+  
+  // ...code
+}</code>
+
+		<p>So now, after we've forwarded a challenge to the server, the server replied to us with a response. This response will be caught inside this while loop. But first, let's now talk about the <i>"connectionless packet"</i> concept.</p>
+
+		<h3>The "connectionless packet"</h3>
+
+		<p>This is the packet with our challenge response from the server (it can also contain other messages than just our challenge). How do we know if we fetched a connectionless packet or a data packet containing e.g. SVCs to parse? It's pretty straightforward! If we fetch a <i>connectionless packet</i>, the first four bytes (an integer) of the raw packet data will be -1 (or 0xFFFFFFFF). This is called a <i>"Connectionless header"</i>. This header indicates the presence of incomming connectionless packet. The code to check if we got such packet is following:</p>
+
+<code>// Inside the fetching while loop
+
+// Check if the first four bytes of raw packet data is the connectionless header.
+if (*(int*)net_message.data == CONNECTIONLESS_HEADER) // -1
+{
+  CL_ConnectionlessPacket(); // Process it
+  continue; // Go to next packet
+}
+</code>
+
+		<h2>CL_ConnectionlessPacket()</h2>
+
+		<p>As stated before, this function is responsible for processing messages we got from the remote server, if the connectionless packet occurs. One of which is our challenge response which we'll talk about now.</p>
+		
+		<p>This message is a one continuous stream of characters. Where the first character of the stream represents the <i>message id</i> in a character form. So for example, our challenge message id is the letter "A". What follows is the raw data, specific for every message id. With that in mind, we should now understand the following challenge response we get from the server:</p>
+
+<code>
+"A00000000 1046947320 3 1 0"
+ ^         ^          ^ ^ ^ 
+ |         |          | | 0 or 1 if the server is VAC secured
+ |         |          | steam game server ID
+ |         |          authentication protocol (WON, CD hash, or steam)
+ |         challenge value
+ message id
+    </code>
+
+		<p>Pretty simple. Now, from this message we parse out all tokens and save the valid information. Every message the server sends to us must follow some specific format, otherwise the whole system would crash on inconsistencies made by reading invalid data. This is predefined by the <i>protocol</i>, which AFAIK, wasn't published anywhere by Valve, apart inside the code.</p>
+
+		<p>So just to recap, the whole point of this was that we sent a challenge (or a request) to the server after the "connect" cmd was executed. The server replied with this information. We processed this information, and now we establish the connection with the server using the correct authentication protocol. In our case the steam auth prot.</p>
+
+		<p>Now, after we've gathered all this information from the challenge response, it's time to send the connect packet and initialize the connection with the server. This will still be done after dispatching the challenge response inside <i>CL_SendConnectPacket()</i>.</p>
+
+		<h2>Sending the connect packet</h2>
+
+		<p>We are inside <i>CL_SendConnectPacket()</i>. Here, we send our connect response to the server after fetching the challenge. In there, we decide on which protocol authentication we'll be using, and we forward appropriate data to the server. The packet data we're forwarding to the server via a packet will have following format:</p>
+
+<code>// Format of the connect packet:
+1.-4.connect 5. 6. \"7.\" \"8.\"\n"
+
+// Where:
+//  1.-4. is always 255
+//  5.    protocol version (i.e. 48 on the newest build)
+//  6.    challenge value
+//  7.    raw protocol information/data
+//  8.    userinfo string
+</code>
+
+		<p>Everything is pretty straightforward. But, about the raw protocol information/data, this depends on the authentication protocol we're using. For example, when using the steam auth protocol, this dat has a "steam" token in it. Else when using CD hash, the data has a CD hash string in it, etc. We can actually see it here:</p>
+
+<code>// The protocol raw data example
+\prot\3\unique\-1\raw\steam\cdkey\4e578ba3782d57001382dc956539de0b
+                      ^
+                      the steam token we've talked about
+</code>
+
+		<p>This info string has following syntax: <i>"keyname"\"value"</i>. And thus it can be divided into:</p>
+
+<code>// KEY NAME   VALUE
+// prot     - auth protocol value, i.e. for steam it is 3
+// unique   - always -1
+// raw      - raw auth protocol data
+// cdkey    - hashed CD key
+</code>
+
+		<p>Now this is the protocol information. However, the packet contains even more information. For example the protocol version, the challenge value and the raw userinfo string. Together with the protocol information it composes the final data transferred to the server via a packet. An example of such packet data that will be sent to the server can be seen here:</p>
+
+<code>ÿÿÿÿconnect 48 1046947320 "\prot\3\unique\-1\raw\steam\cdkey\4e578ba3782d57001382dc956539de0b" "\hud_classautokill\1\cl_dlmax\512\cl_lc\1\cl_lw\1\cl_updaterate\60\bottomcolor\6\topcolor\30\model\gordon\name\Player\rate\20000"
+
+// The formatting of this packet is shown above.
+</code>
+
+		<p>This data is then forwarded to <i>NET_SendPacket()</i> and to the server.</p>
+
+		<h2>Almost final steps</h2>
+
+		<p>After we've parsed the first connectionless packet, there's another one right after. In the first one we basically got the challenge response and sent the connect packet to the server, and the in the second one we receive a kind of "notification" from the server that we're approved to finally connect to the server. (the second connectionless packet is still happening before the server processed our connect packet)</p>
+
+		<p>So now we're again inside <i>CL_ConnectionlessPacket()</i> however, now with different message id. Remember, the first msg id was the challenge response. But now, we got the letter "B" message id, which states for "connection approval".</p>
+
+		<p>Upon dispatching this message id, we call yet another (now last) function - <i>CL_ConnectClient()</i>.</p>
+
+		<h2>CL_ConnectClient(), the final step</h2>
+
+		<p>If you've come this far, you got my respect! Because understanding all of this is pretty hard, I know. So don't worry if you don't understand everything! :)</p>
+
+		<p>Spoilers, inside this function we finally mark us as "connected" by setting <i>cls.state = ca_connected</i>. But before that, I'd like to also discuss what this function does and what is its purpose.</p>
+
+		<p>So actually, dispatching the "connection approval" connectionless message id also comes with parsing out the parameters we got along with this packet from the server. An example of such packet data could be:</p>
+
+<code>
+B 165 "158.XXX.50.XX:27005" 0 8156
+^ ^   ^                     ^ ^
+| |   |                     | server build number
+| |   |                     always zero (unknown)
+| |   "true" ip address
+| user id
+message id
+</code>
+
+		<p>This is the information we get along with the packet. This data is again saved globally for later use. After we parse all of the information, we setup netchan connection, which allows us to receive SVC packets from the server next frame.</p>
+
+		<p>After that, a message is printed to the console, informing us about the successful connection, together with following:</p>
+
+<code>...
+// The message
+Con_Printf("Connection accepted by %s\n", addr);
+
+cls.state = ca_connected // Now we're connected!
+...
+</code>
+
+		<p>Then we setup some more global data such as the connection timestamp etc. And that is it! Now we'll start to receive SVC packets with actual data such as entity data, resources, and more.</p>
+
+		<h2>Conclusion</h2>
+
+		<p>Let's now sum up the steps we had to overcome in order to successfully connect to a remote server:</p>
+
+		<img src="../assets/goldsrc_connection_process.svg" style="min-width: 70%;"></img>
+
+		<p>These steps weren't taken in one frame however, in several (few) frames. The communication between client and server is not instant, but rather per time. One frame client requests a challenge and the other frame server processes this challenge request and sends an response, and after that client processes this response.</p>
+
+		<p>After the final step, i.e. setuping the netchan + setting cls.state to ca_connected, we can finally receive SVC packets from the server. From now on, data is constantly flushed by the server onto client every frame until we render world, entities, and all other kinds of stuff and we can play on the connected server.</p>
+
+		<h2>More information</h2>
+
+		<p>Now, this article was only about "establishing" the connection with us and the server. After this is done, as mentioned before, actual data is being read. This is where it gets interesting, as we slowly process all resources, entities, custom data, render the world etc.</p>
+
+		<p>Maybe in the future I'll write about what happens next. :)</p>
+
+		<div class="Footer">
+			<div style="float: right">Copyright © 2022 oxiKKK</div>
+			<div style="float: left" id="LastUpdatedID"></div>
+			<div class="Icon">
+				<a href="https://www.youtube.com/c/OX666" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="red" class="bi bi-youtube"
+						viewBox="0 0 16 16">
+						<path
+							d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.007 2.007 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.007 2.007 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31.4 31.4 0 0 1 0 7.68v-.123c.002-.215.01-.958.064-1.778l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.007 2.007 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A99.788 99.788 0 0 1 7.858 2h.193zM6.4 5.209v4.818l4.157-2.408L6.4 5.209z" />
+					</svg></a>
+
+				<a href="https://github.com/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" class="bi bi-github"
+						viewBox="0 0 16 16">
+						<path
+							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+					</svg></a>
+				<a href="https://steamcommunity.com/id/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1b2838" class="bi bi-steam"
+						viewBox="0 0 16 16">
+						<path
+							d="M.329 10.333A8.01 8.01 0 0 0 7.99 16C12.414 16 16 12.418 16 8s-3.586-8-8.009-8A8.006 8.006 0 0 0 0 7.468l.003.006 4.304 1.769A2.198 2.198 0 0 1 5.62 8.88l1.96-2.844-.001-.04a3.046 3.046 0 0 1 3.042-3.043 3.046 3.046 0 0 1 3.042 3.043 3.047 3.047 0 0 1-3.111 3.044l-2.804 2a2.223 2.223 0 0 1-3.075 2.11 2.217 2.217 0 0 1-1.312-1.568L.33 10.333Z" />
+						<path
+							d="M4.868 12.683a1.715 1.715 0 0 0 1.318-3.165 1.705 1.705 0 0 0-1.263-.02l1.023.424a1.261 1.261 0 1 1-.97 2.33l-.99-.41a1.7 1.7 0 0 0 .882.84Zm3.726-6.687a2.03 2.03 0 0 0 2.027 2.029 2.03 2.03 0 0 0 2.027-2.029 2.03 2.03 0 0 0-2.027-2.027 2.03 2.03 0 0 0-2.027 2.027Zm2.03-1.527a1.524 1.524 0 1 1-.002 3.048 1.524 1.524 0 0 1 .002-3.048Z" />
+					</svg></a>
+				<a href="https://discordapp.com/users/363390198563864576/" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#404EED" class="bi bi-discord"
+						viewBox="0 0 16 16">
+						<path
+							d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.051.051 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.594.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.034.034 0 0 0-.02-.019Zm-8.198 7.307c-.789 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612Zm5.316 0c-.788 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612Z" />
+					</svg></a>
+			</div>
+		</div>
+	</div>
+</body>
+
+</html>
