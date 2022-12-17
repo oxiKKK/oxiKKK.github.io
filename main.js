@@ -53,6 +53,9 @@ function lastUpdatedTimestampRefresh() {
     "Updated on " + getFormattedTime(date);
 }
 
+// Days between two dates
+const getDayDifference = (date1, date2) => Math.round((date2 - date1) / (1000 * 60 * 60 * 24));
+
 // Appends 'NEW!' to the article date if the article is younger than 31 days.
 function resolveArticleAge() {
   const elements = document.getElementsByClassName('ArticleDate');
@@ -69,11 +72,9 @@ function resolveArticleAge() {
       return;
     }
 
-    const monthDiff = currentDate.getUTCMonth() - articleDate.getUTCMonth();
-    const dayDiff = currentDate.getUTCDate() - articleDate.getUTCDate();
-    const totalDays = monthDiff >= 1 ? dayDiff + (monthDiff * 31) : dayDiff;
+    const totalDays = getDayDifference(articleDate, currentDate);
 
-    // console.log(`For ${articleDate}, the difference is ${totalDays} days.`);
+    console.log(`For ${articleDate}, the difference is ${totalDays} days.`);
 
     if (totalDays <= 31) {
       elm.textContent += " NEW!";
