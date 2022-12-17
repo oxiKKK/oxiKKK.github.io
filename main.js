@@ -49,7 +49,7 @@ function getFormattedTime(date) {
 function lastUpdatedTimestampRefresh() {
   let date = new Date(document.lastModified);
 
-  document.getElementById("LastUpdatedID").innerHTML =
+  document.getElementById("last_update_id").innerHTML =
     "Updated on " + getFormattedTime(date);
 }
 
