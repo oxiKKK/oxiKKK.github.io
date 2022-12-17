@@ -58,7 +58,7 @@ const getDayDifference = (date1, date2) => Math.round((date2 - date1) / (1000 * 
 
 // Appends 'NEW!' to the article date if the article is younger than 31 days.
 function resolveArticleAge() {
-  const elements = document.getElementsByClassName('ArticleDate');
+  const elements = document.getElementsByClassName('article__date');
 
   for (let i = 0, length = elements.length; i < length; i++) {
     const elm = elements[i];
