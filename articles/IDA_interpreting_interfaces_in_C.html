@@ -32,144 +32,291 @@
 	<main class="app">
 		<div class="section_header">IDA interpreting C++ interfaces in C</div>
 	
-		<p>In the C++ language, we have something that is called a class. A class is essentially a C struct, containing some data and functions. It may contain members or member functions that are either private, public or protected. It may also contain just a single base class (single inheritance) or a couple dozens of them (multiple inheritance), as we may have seen in some complicated class hierarchies. Well, in this article I will explain how to carefully define classes in IDA, so that the IDA's decompiler can turn these nasty offsets into actual members or member functions of the particular class.</p>
+		<p>In the C++ language, we have something that is called a class. A class is essentially a C struct, containing some data and functions. It may contain members or member functions that are either private, public or protected. It may also contain just a single base class (single inheritance) or a couple dozens of them (multiple inheritance), as we may have seen in some complicated class hierarchies. Well, in this article I will explain how to carefully define classes in IDA, so that the IDA decompiler can turn these nasty offsets into actual members or member functions of the particular class.</p>
 
 		<h2>The basics</h2>
 
-		<p>So as you may know, it's possible to upload a C header into IDA, which will be then turned into defined data that you can apply while reversing. For example, you create a header file, declare a struct there, upload it to IDA and then the struct is defined inside IDA, simple as that. This is how we'll define the C++ classes. But wait, how can we declare a C++ class inside a C header file? Well, we can, however it requires some knowledge of how the linker structures classes in the memory.</p>
+		<p>So as you may know, it's possible to upload a C header into IDA, which will be then turned into defined data that you can apply while reversing. For example, you create a header file, declare a struct there, upload it to IDA and then the struct is defined inside IDA, simple as that. This is how we'll define our C++ classes. But wait, how can we declare a C++ class inside a C header file? Well, we can, however it requires some knowledge of how they're structured in memory.</p>
 
-		<p>As an example we'll look on how interfaces are made inside the GoldSrc engine.</p>
+		<h2>Single inheritance</h2>
 
-		<h2>Goldsource interfaces</h2>
-
-		<p>Many of the examples listed below are being applied in various applications. I've picked the GoldSrc environment since that's what I've been most comfortable with in this particular case with interfaces.</p>
-
-		<p>In this example, we'll have an IInterface pure virtual class and class that inherits from IInterface called CClass. This class will contain one member called data and some virtual and non-virtual member functions to fully illustrate the concept. But first, let's take a look just at the interface class.</p>
-
-		<h2>Interface declaration and memory layout</h2>
-
-<code>// A base class for the interfaces - see Virtual Destructors for more information
-// Every interface in GS has this as a base class
-class IBaseInterface
+<code>class IBaseInterface
 {
+public:
     virtual ~IBaseInterface() {}
 };
 
-// Our interface class
-class IInterface : IBaseInterface
+class IInterface : public IBaseInterface
 {
 public:
-    virtual void a() = 0;
-    virtual void b() = 0;
-    virtual void c() = 0;
+    virtual ~IInterface() {}
+
+    virtual void a() {};
+    virtual void b() {};
+    virtual void c() {};
 };
 </code>
 
-		<p>As you can see, the interface is pretty straightforward. It contains some pure virtual methods and that's about it. Now, this interface cannot be declared alone, it has to be a base class for some other class that will override all of its methods. The interface shouldn't contain any members, only pure virtual methods. And now, let's see how would be this interface class represented behind the curtain, inside memory.</p>
+		<p>When a class has at least one virtual function, a so called <i>"Virtual Function Table"</i> or <i>VFT</i> is created internally by the compiler. It is essentially just an array of pointers, each pointing to the virtual function implementation. A pointer to this VFT is placed at the very bottom of the class (offset 0).</p>
 
-<code>class IInterface
-    +---
- 0  | IInterface_vftbl* __vftable // The VF table is always the first member
- 4  +---
+		<h3>In-memory representation</h3>
 
-// An virtual function table for the class IInterface
+<code>class IBaseInterface_vftbl
+   +---
+ 0 | &IBaseInterface::`virtual destructor`
+ 4 +---
+
 class IInterface_vftbl
-    +---
- 0  | &IInterface::a
- 4  | &IInterface::b
- 8  | &IInterface::c
-12  +---
+   +---
+ 0 | &IInterface::`virtual destructor` // overridden from IBaseInterface
+ 4 | &IInterface::a
+ 8 | &IInterface::b
+12 | &IInterface::c
+16 +---
+
+class IInterface
+   +---
+ 0 | IInterface_vftbl* __vftable // the VF table is always the first member
+   | if IInterface had any members, they would be all placed here
+ 4 +---
 </code>
 
-		<p>This is the memory layout of the IInterface class. Now let's have a little talk about how this works. So as you can see, the first thing inside the class is the VFT, which is essentially a pointer to an array of pointers, each pointing to a virtual function address declared in the interface. This is always the first thing inside a class with virtual methods.</p>
+		<p>As we can see, the IInterface class implements three unique virtual functions and one virtual destructor (overridden from IBaseInterface). These are all placed in the IInterface's VFT. So far the class doesn't have any members, so it only contains this pointer.</p>
 
-		<p>Next, lets add the CClass that will have IInterface as a base class.</p>
+		<h2>Class that inherits from IInterface</h2>
 
-		<h2>Using the interface in practice</h2>
+		<p>Now, what if we create another class that will inherit from IInterface? The approach is similar however, more complicated. Long story short, the third class (CClass) will override IInterface functions and will also create new virtual functions and one non-virtual function. All of these (virtual only) will be then added into one VFT created for this class.</p>
 
-<code>class CClass : IInterface
+<code>class CClass : public IInterface
 {
 public:
-    void a() override {} // Just for the logic sake
-    void b() override {}
-    void c() override {}
+    virtual ~CClass() {}
+
+//  virtual void a() {} <-- the one from IInterface will be used instead
+    virtual void b() {}
+    virtual void c() {}
 
 public:
-    virtual void do_bad_stuff() {}   // These two create a new VFT entry for this class
-    virtual void do_nice_stuffd() {}
+    virtual void do_bad_stuff() {}   // these two create a new VFT entry
+    virtual void do_nice_stuff() {}
 
-    void do_class_things() {}        // Isn't included inside VFT
+    void do_class_things() {}        // non-virtual isn't included inside VFT
 
 public:
     int data;
 };
 </code>
 
-		<p>In this code, the CClass has a IIterface class as the base class and must override it's members. It also contains a member called data of a type of integer. Now let's see how this would </p>
+		<h3>In-memory representation</h3>
 
-<code>// Original VFT for IInterface
-class IInterface_vftbl
-    +---
- 0  | &IInterface::a
- 4  | &IInterface::b
- 8  | &IInterface::c
-12  +---
+<code>class IBaseInterface_vftbl // still has a standalone copy of itself
+   +---
+ 0 | &IBaseInterface::`virtual destructor`
+ 4 +---
+
+class IInterface_vftbl // same here
+   +---
+ 0 | &IInterface::`virtual destructor` // overridden from IBaseInterface
+ 4 | &IInterface::a
+ 8 | &IInterface::b
+12 | &IInterface::c
+16 +---
 
 class CClass_vftbl
-    +---
- 0  |  __vftable_iinterface  // First comes the base interface (non pointer!)
-12  | &CClass::do_bad_stuff  // Then virtual members from our class
-16  | &CClass::do_nice_stuff
-20  +---
+   +---
+ 0 | &CClass::`virtual destructor`  // overridden from IBaseInterface
+ 4 | &IInterface::a                 // CClass didn't implement a(), use from IInterface
+ 8 | &CClass::b                     // overridden from IInterface
+12 | &CClass::c
+16 | &CClass::do_bad_stuff          // CClass virtual methods
+20 | &CClass::do_nice_stuff
+24 +---
+
+class IInterface
+   +---
+ 0 | CClass_vftbl* __vftable // IInterface + IBaseInterface VFT gets merged with CClass's VFT
+ 0 | // if IInterface had any members, they would be all placed here
+ 4 +---
 
 class CClass_mbrs
-    +---
- 0  | data
- 4  +---
+   +---
+ 0 | data
+ 4 +---
 
 class CClass
-    +---
- 0  | CClass_vftbl* __vftable
- 4  | CClass_mbrs   __members
-12  +---
+   +---
+ 0 | IInterface  __baseclass_IInterface // The base class is just "copy-pasted" here
+ 4 | CClass_mbrs __members
+ 8 +---
 </code>
 
-		<p>Okay so first thing is the IInterface VFT declaration from the previous figure. We use this inside the CClass VFT, where what follows are the CClass virtual methods, however not the non-virtual method! Pointer to this VFT is then included as the first thing inside CClass, and after that the class members follows. Simple as that.</p>
+		<p>It is important to note that while both IBaseInterface and IInterface VFT's gets merged into CClass's VFT, both IBaseInterface and IInterface pertain copies of itself somewhere in memory.</p>
 
-		<h2>Representation in a C header</h2>
+		<h2>Multiple inheritance</h2>
 
-		<p>Now when we understand the basics of how the linker forms the object memory layout, we can start defining the class insider a C header using struct. As an example we'll use the class A from the previous multiple-inheritance figure.</p>
+		<p>Now let's create a new class called CAnotherClass, and make it inherit from multiple classes at once. The approach to the solution will be again, very similar however, more complicated.</p>
 
-		<p>Now, this may seem pretty hard, but in reality is simple. If you're scared of what's following, you should go back and get more familiar of how the memory of a class is structured. Okay so, assuming that you have the enough knowledge of how this works, let's get into it.</p>
+<code>class IInterface1
+{
+public:
+    virtual void a1() {};
+    virtual void b1() {};
+    virtual void c1() {};
 
-<code>// cclass.h
+    virtual void interface1() {};
+};
 
-// Have to do some forward declarations because the VFT structs
-// uses their classes before their declared.
+class CAnotherClass : public CClass, public IInterface1
+{
+public:
+    virtual ~CAnotherClass() {}
+
+    virtual void a1() {}
+    virtual void b1() {}
+    virtual void c1() {}
+
+    virtual void another_class() {};
+
+public:
+    int another_data;
+};
+</code>
+
+		<h3>In-memory representation</h3>
+
+<code>class IInterface1_vftbl // original VFT for IInterface1, placed somewhere in memory
+   +---
+ 0 | &IInterface1::a1
+ 4 | &IInterface1::b1
+ 8 | &IInterface1::c1
+12 | &IInterface1::interface1
+16 +---
+
+// CAnotherClass's copy of IInterface1 with overridden functions (2nd inheritance)
+class CAnotherClass_IInterface1_vftbl 
+   +---
+ 0 | &CAnotherClass::a1                   // overriden by CAnotherClass
+ 4 | &CAnotherClass::b1                   // same here
+ 8 | &CAnotherClass::c1                   // same here
+12 | &IInterface1::interface1             // IInterface1's unique virtual method
+16 +---
+
+class CAnotherClass_vftbl
+   +---
+ 0 | &CAnotherClass::`virtual destructor` // overridden from IBaseInterface
+ 4 | &IInterface::a                       // again didn't implement a(), use from IInterface
+ 8 | &CClass::b                           // didn't implement, use from CClass
+12 | &CClass::c                           // same here
+16 | &CClass::do_bad_stuff                // same here
+20 | &CClass::do_nice_stuff               // same here
+24 | &CAnotherClass::another_class        // now comes CAnotherClass's virtual methods
+28 +---
+ 
+class CAnotherClass_IInterface1
+   +---
+ 0 | CAnotherClass_IInterface1_vftbl* __vftable
+ 4 +---
+
+class IInterface
+   +---
+ 0 | CAnotherClass_vftbl* __vftable
+ 4 +---
+ 
+class CClass_mbrs
+   +---
+ 0 | data
+ 4 +---
+
+class CClass
+   +---
+ 0 | IInterface  __baseclass_IInterface
+ 4 | CClass_mbrs __members
+ 8 +---
+
+class CAnotherClass_mbrs
+   +---
+ 0 | another_data
+ 4 +---
+
+class CAnotherClass
+   +---
+ 0 | CClass __baseclass_CClass // 1st base class (contains CAnotherClass's VFT)
+ 8 | CAnotherClass_IInterface1 __baseclass_CAnotherClass_IInterface1 // 2nd inheritance
+12 | CAnotherClass_mbrs _members
+16 +---
+</code>
+
+		<p>In this example, CAnotherClass derives from CClass and IInterface1. IInterface  creates its own standalone VFT with its virtual functions however, another one is created because CAnotherClass overrides some of IInterface1 methods.</p>
+		
+		<p>So now CAnotherClass contains two VFTs, one for its own virtual functions, and another one for virtual functions in second base class.</p>
+
+		<h2>Even more inheritance?</h2>
+
+		<p>So far we have seen only a class with two base classes however, there can be far more than that. As you can see, this gets really complicated when you have a lot of inheritance, but the pattern is the same every time. The first base classes VFT always gets merged with the derived classes VFT, and other base classes have it's own VFT.</p>
+
+		<h2>C implementation of the class</h2>
+
+		<p>Now when we know how the class looks like in memory, we can recreate the class concept in C. Let's recreate the CAnotherClass in C.</p>
+
+<code>// header file containing C classes
+
 struct IInterface;
-struct CClass;
-
-// VFT for IInterface
 struct IInterface_vftbl
 {
-    void (__thiscall* a)(IInterface* this);
-    void (__thiscall* b)(IInterface* this);
-    void (__thiscall* c)(IInterface* this);
+    void (__thiscall* virtual_destructor)(IInterface* _this);  // &IInterface::~IInterface
+    void (__thiscall* a)                 (IInterface* _this);  // &IInterface::a
+    void (__thiscall* b)                 (IInterface* _this);  // &IInterface::b
+    void (__thiscall* c)                 (IInterface* _this);  // &IInterface::c
+};
+
+struct CClass;
+struct CClass_vftbl
+{
+    void (__thiscall* virtual_destructor)(CClass* _this);      // &CClass::~CClass
+    void (__thiscall* a)                 (IInterface* _this);  // &IInterface::a
+    void (__thiscall* b)                 (CClass* _this);      // &CClass::b
+    void (__thiscall* c)                 (CClass* _this);      // &CClass::c
+    void (__thiscall* do_bad_stuff)      (CClass* _this);      // &CClass::do_bad_stuff
+    void (__thiscall* do_nice_stuff)     (CClass* _this);      // &CClass::do_nice_stuff
+};
+
+struct IInterface1;
+struct IInterface1_vftbl
+{
+    void (__thiscall* a1)                (IInterface1* _this); // &IInterface1::a1
+    void (__thiscall* b1)                (IInterface1* _this); // &IInterface1::b1
+    void (__thiscall* c1)                (IInterface1* _this); // &IInterface1::c1
+    void (__thiscall* interface1)        (IInterface1* _this); // &IInterface1::interface1
+};
+
+struct CAnotherClass_IInterface1_vftbl
+{
+    void (__thiscall* a1)                (CAnotherClass* _this); // &CAnotherClass::a1
+    void (__thiscall* b1)                (CAnotherClass* _this); // &CAnotherClass::b1
+    void (__thiscall* c1)                (CAnotherClass* _this); // &CAnotherClass::c1
+    void (__thiscall* interface1)        (IInterface1* _this);   // &IInterface1::interface1
+};
+
+struct CAnotherClass;
+struct CAnotherClass_vftbl
+{
+    void (__thiscall* virtual_destructor)(CAnotherClass* _this); // &CAnotherClass::~CAnotherClass
+    void (__thiscall* a)                 (IInterface* _this);    // &IInterface::a
+    void (__thiscall* b)                 (CClass* _this);        // &CClass::b
+    void (__thiscall* c)                 (CClass* _this);        // &CClass::c
+    void (__thiscall* do_bad_stuff)      (CClass* _this);        // &CClass::do_bad_stuff
+    void (__thiscall* do_nice_stuff)     (CClass* _this);        // &CClass::do_nice_stuff
+    void (__thiscall* another_class)     (CAnotherClass* _this); // &CAnotherClass::another_class
+};
+
+struct CAnotherClass_IInterface1
+{
+    CAnotherClass_IInterface1_vftbl* __vftable;
 };
 
 struct IInterface
 {
-    IInterface_vftbl* __vftable;
-};
-
-// VFT for CClass that also contains IInterface virtual methods
-struct CClass_vftbl
-{
-    // VFT for IInterface
-    IInterface_vftbl __vftable_iinterface;
-
-    void (__thiscall* do_bad_stuff)(CClass* this);
-    void (__thiscall* do_nice_stuff)(CClass* this);
+    CAnotherClass_vftbl* __vftable;
 };
 
 struct CClass_mbrs
@@ -179,112 +326,24 @@ struct CClass_mbrs
 
 struct CClass
 {
-    CClass_vftbl* __vftable;
-    CClass_mbrs   __members;
-};
-
-</code>
-
-		<p>The CClass class that inherits from the IInterface in C++ can be represented like this in a C structure. This structure can be then uploaded into IDA and finally applied in practice.</p>
-
-		<h2>Even more inheritance</h2>
-		
-		<p>Assume that we have another class called CAnotherClass and this class has a base class CClass. Now what? We already know how to declare a class inheriting from a pure virtual interface, however what if the base class has some data in it? Let's declare such class.</p>
-
-<code>class CAnotherClass : CClass
-{
-public:
-    virtual void hello() {};
-    virtual void bye() {};
-
-public:
-    char more_data[16];
-    float even_more_data;
-};
-</code>
-
-		<p>So this class has yet another two member functions and two members. Let's see how this is all lied in memory.</p>
-
-<code>// Original VFT for IInterface
-class IInterface_vftbl
-    +---
- 0  | &IInterface::a
- 4  | &IInterface::b
- 8  | &IInterface::c
-12  +---
-
-class CClass_vftbl
-    +---
-0   | IInterface_vftbl __vftable // First comes the base interface (non pointer!)
-12  | &CClass::do_bad_stuff      // Then virtual members from our class
-16  | &CClass::do_nice_stuff
-20  +---
-
-class CClass_mbrs
-    +---
- 0  | data
- 4  +---
-
-class CAnotherClass_vftbl
-    +---
-0   | __vftable_cclass       // CClass VFT containing IInterface VFT
-20  | &CAnotherClass::hello  // Virtual methods of CAnotherClass
-24  | &CAnotherClass::bye
-28  +---
-
-class CAnotherClass_mbrs
-    +---
- 0  | __members_cclass // First members of CClass
- 4  | more_data
-20  | even_more_data
-24  +---
-
-class CAnotherClass
-    +---
- 0  | CAnotherClass_vftbl* __vftable;
- 4  | CAnotherClass_mbrs   __members;
-32  +---
-</code>
-
-		<p>The thing that we have to note there is the fact that everything starts to kind of lay on top of each other. This pattern essentially never fails even with classes with dozens of inheritance and thousands of bytes of data. Let's now see the representation in a C header.</p>
-
-		<h2>Representation in a C header</h2>
-
-<code>// canotherclass.h
-	
-struct CAnotherClass;
-
-// VFT for CAnotherClass also containing CClass VFT
-struct CAnotherClass_vftbl
-{
-    // VFT for CClass
-    CClass_vftbl __vftable_cclass; // No pointer!
-
-    // Virtual methods of CAnotherClass
-    void(__thiscall* hello)(CAnotherClass* this);
-    void(__thiscall* bye)(CAnotherClass* this);
-    // ... possibly more
+    IInterface  __baseclass_IInterface;
+    CClass_mbrs __members;
 };
 
 struct CAnotherClass_mbrs
 {
-    char more_data[16];
-    float even_more_data;
+    int another_data;
 };
 
 struct CAnotherClass
 {
-    CAnotherClass_vftbl* __vftable;
-
-    // First the members of CClass
-    CClass_mbrs          __members_cclass;
-    
-    // Then our members
-    CAnotherClass_mbrs   __members;
+    CClass __baseclass_CClass;
+    CAnotherClass_IInterface1 __baseclass_CAnotherClass_IInterface1;
+    CAnotherClass_mbrs _members;
 };
 </code>
 
-		<p>And that's it. If you find this kinda complicated, that's alright. It's understandable that you may not get the concept in just one reading, especially if you're new to all of this. On the other hand, I hope that this text is somewhat readable and understandable. With this kind of pattern you can express any class you want, no matter how complex it is.</p>
+		<p>And that's it. If you load this into IDA, you should have fully working C version of C++ CAnother class. Hope it helped!</p>
 
 		<footer>
 			<div class="footer__last_update" id="last_update_id"></div>
