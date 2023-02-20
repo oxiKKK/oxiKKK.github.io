@@ -14,6 +14,8 @@ a:hover {
 
 nav {
 	display: flex;
+	position: sticky;
+	top: 0;
 	justify-content: space-between;
 	align-items: center;
 	background-color: #eeeeee;
@@ -39,22 +41,26 @@ nav {
 	overflow: hidden;
 	word-wrap: break-word;
 	background-color: #eeeeee;
+	box-shadow: 0 0 5px 1rem #eeeeee;
 }
 
 .section_header {
 	margin-top: 0.1rem;
 	margin-bottom: 0.3rem;
-	font-size: 2rem;
+	font-size: 1.8rem;
 	font-weight: bold;
 	text-align: center;
 	border-bottom: solid grey 1px;
 }
 
 .article {
-	font-size: 18px;
-	line-height: 25px;
 	padding-bottom: 2px;
 	padding-left: 10px;
+	transition: background-color 0.3s ease;
+}
+
+.article:hover {
+	background-color: #dddddd;
 }
 
 .article__date {
@@ -66,10 +72,10 @@ nav {
 }
 
 .article__name {
+	font-size: 1.25rem;
 	text-decoration: none;
 	color: black;
 	transition: color 0.2s;
-	font-size: 1.35rem;
 }
 
 .article__desc {
@@ -78,12 +84,17 @@ nav {
 	line-height: 1rem;
 }
 
+.article__readmore:hover {
+	color:royalblue;
+}
+
 .article__readmore {
 	font-size: 0.9rem;
 	padding-left: 1.2rem;
 	line-height: 1rem;
 	text-transform: uppercase;
 	color: cornflowerblue;
+	transition: color 0.3s;
 }
 
 footer {

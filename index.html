@@ -18,102 +18,124 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 
 	<link rel="stylesheet" href="style.css">
-
-	<script src="main.js"></script>
 </head>
 
 <body>
 	<nav>
-		<a class="nav__link" href="about.html">about</a>
 		<a class="nav__site_name nav__link" href="./">oxiKKK.github.io</a>
-		<a class="nav__link" href="./">index</a>
+		<a class="nav__link" href="https://github.com/oxiKKK">My GitHub page</a>
 	</nav>
 
 	<main class="app">
-		<div class="section_header">x86 Architecture</div>
+		<div id="intro">
+			<p>Heyyy traveler, Welcome to my page! :^) Here you can learn with me!</p>
 
-		<div class="article">
-			<div class="article__date">October 3, 2022</div>
-			<a class="article__name" href="articles/x86_calling_conventions.html">x86 Calling Conventions</a><br>
-			<div class="article__desc">Read about calling conventions used in the assembly language and also C & C++.</div>
-			<a href="articles/x86_calling_conventions.html" class="article__readmore">Read More</a>
-		</div>
+			<h2>Who are you?!</h2>
 
-		<div class="article">
-			<div class="article__date">October 7, 2022</div>
-			<a class="article__name" href="articles/x86_registers.html">x86 Registers</a><br>
-			<div class="article__desc">Read about the GPRs (General Purpose Registers), stack registers, the EFLAGS register and more, used on the x86 CPU architecture.</div>
-			<a href="articles/x86_registers.html" class="article__readmore">Read More</a>
-		</div>
+			<p>I am a self-taught developer that mostly enjoys electronics, programming, and fixing template-related compiler errors in C++!</p>
+			
+			<p>I can code very well in C++/C, I am familiar with the x86 assembly (via reverse-engineering), I know a little bit of modern HTML/CSS/JS... and that's about it! I particularly like the GoldSrc engine 🖤 aaand a little bit of other stuff such as cheating, exploiting and software vulnerabilities, and operating systems.</p>
 
-		<div class="article">
-			<div class="article__date">October 10, 2022</div>
-			<a class="article__name" href="articles/x86_advanced_registers.html">x86 Advanced Registers</a><br>
-			<div class="article__desc">Read about some of the more unusual registers used on the x86 CPU architecture such as the SIMD registers.</div>
-			<a href="articles/x86_advanced_registers.html" class="article__readmore">Read More</a>
-		</div>
+			<h2>Why does this exist</h2>
 
-		<div class="article">
-			<div class="article__date">October 15, 2022</div>
-			<a class="article__name" href="articles/x86_x87_FPU.html">x87 FPU (Floating Point Unit)</a><br>
-			<div class="article__desc">Read about how floating-point numbers are represented on the low level - using the x87 floating-point-unit instruction set.</div>
-			<a href="articles/x86_x87_FPU.html" class="article__readmore">Read More</a>
-		</div>
+			<p>I created this site in order to educate myself as well as the others, and also to practice my HTML/CSS/JS skills (of course). By writing down about some topic really helps me to understand it pretty well, while possibly educating other people as well.</p>
 
-		<div class="section_header">Hardware</div>
+			<p>I mainly post here just some basic articles about stuff I'm currently interested in, or stuff that seems notable. If you want to contact me for whatever reason, you can find contacts on the bottom of the page! Thanks for visiting. :^)</p>
 
-		<div class="article">
-			<div class="article__date">October 27, 2022</div>
-			<a class="article__name" href="articles/HAL.html">HAL (Hardware Abstraction Layer)</a><br>
-			<div class="article__desc">How software communicates with hardware? How can windows or other operating systems support many architectures at once? Because of HAL!</div>
-			<a href="articles/HAL.html" class="article__readmore">Read More</a>
-		</div>
+			</div>
 
-		<div class="section_header">GoldSource engine</div>
+		<div id="articles">
+		
+			<div class="section_header">x86 Architecture</div>
+			<div class="section" id="x86 Architecture">
+				<div class="article">
+					<div class="article__date">October 3, 2022</div>
+					<a class="article__name" href="articles/x86_calling_conventions.html">x86 Calling Conventions</a><br>
+					<div class="article__desc">Read about calling conventions used in the assembly language and also C & C++.</div>
+					<a href="articles/x86_calling_conventions.html" class="article__readmore">Read More</a>
+				</div>
+		
+				<div class="article">
+					<div class="article__date">October 7, 2022</div>
+					<a class="article__name" href="articles/x86_registers.html">x86 Registers</a><br>
+					<div class="article__desc">Read about the GPRs (General Purpose Registers), stack registers, the EFLAGS register and more, used on the x86 CPU architecture.</div>
+					<a href="articles/x86_registers.html" class="article__readmore">Read More</a>
+				</div>
+		
+				<div class="article">
+					<div class="article__date">October 10, 2022</div>
+					<a class="article__name" href="articles/x86_advanced_registers.html">x86 Advanced Registers</a><br>
+					<div class="article__desc">Read about some of the more unusual registers used on the x86 CPU architecture such as the SIMD registers.</div>
+					<a href="articles/x86_advanced_registers.html" class="article__readmore">Read More</a>
+				</div>
+		
+				<div class="article">
+					<div class="article__date">October 15, 2022</div>
+					<a class="article__name" href="articles/x86_x87_FPU.html">x87 FPU (Floating Point Unit)</a><br>
+					<div class="article__desc">Read about how floating-point numbers are represented on the low level - using the x87 floating-point-unit instruction set.</div>
+					<a href="articles/x86_x87_FPU.html" class="article__readmore">Read More</a>
+				</div>
+			</div>
+		
+			<div class="section_header">Hardware</div>
+			<div class="section" id="Hardware">
+				<div class="article">
+					<div class="article__date">October 27, 2022</div>
+					<a class="article__name" href="articles/HAL.html">HAL (Hardware Abstraction Layer)</a><br>
+					<div class="article__desc">How software communicates with hardware? How can windows or other operating systems support many architectures at once? Because of HAL!</div>
+					<a href="articles/HAL.html" class="article__readmore">Read More</a>
+				</div>
+			</div>
+		
+			<div class="section_header">GoldSrc engine</div>
+			<div class="section" id="GoldSrc engine">
+				<div class="article">
+					<div class="article__date">October 16, 2022</div>
+					<a class="article__name" href="articles/goldsrc_cmdline_params.html">GoldSrc command Line Parameters</a><br>
+					<div class="article__desc">Read about the majority of command-line parameters used in the GoldSrc engine and learn why do they even exist!</div>
+					<a href="articles/goldsrc_cmdline_params.html" class="article__readmore">Read More</a>
+				</div>
+			
+				<div class="article">
+					<div class="article__date">October 18, 2022</div>
+					<a class="article__name" href="articles/goldsrc_svc_parsing_architecture.html">GoldSrc SVC Parsing Architecture</a><br>
+					<div class="article__desc">Read about how the GoldSrc engine handles communication between client and server, how it receives data and how it is able to do this through a carefully defined protocol.</div>
+					<a href="articles/goldsrc_svc_parsing_architecture.html" class="article__readmore">Read More</a>
+				</div>
+			
+				<div class="article">
+					<div class="article__date">November 23, 2022</div>
+					<a class="article__name" href="articles/goldsrc_connection_process.html">GoldSrc the server connection process</a><br>
+					<div class="article__desc">An in depth description of how connecting to a remote server works internally on the GoldSrc engine.</div>
+					<a href="articles/goldsrc_connection_process.html" class="article__readmore">Read More</a>
+				</div>
+			</div>
 
-		<div class="article">
-			<div class="article__date">October 16, 2022</div>
-			<a class="article__name" href="articles/goldsrc_cmdline_params.html">GoldSrc command Line Parameters</a><br>
-			<div class="article__desc">Read about the majority of command-line parameters used in the GoldSrc engine and learn why do they even exist!</div>
-			<a href="articles/goldsrc_cmdline_params.html" class="article__readmore">Read More</a>
-		</div>
+			<div class="section_header">Reverse-engineering</div>
+			<div class="section" id="Reverse-engineering">
+				<div class="article">
+					<div class="article__date">November 2, 2022</div>
+					<a class="article__name" href="articles/IDA_weird_floating_point_comparison_techniques.html">IDA weird-floating point comparison
+						techniques</a><br>
+					<div class="article__desc">See how IDA Pro decompiles floating pointer comparisons between two values in a weird way and also why.</div>
+					<a href="articles/IDA_weird_floating_point_comparison_techniques.html" class="article__readmore">Read More</a>
+				</div>
+			
+				<div class="article">
+					<div class="article__date">November 6, 2022</div>
+					<a class="article__name" href="articles/IDA_interpreting_interfaces_in_C.html">IDA Interperting C++ Interfaces in C</a><br>
+					<div class="article__desc">Read about how are C++ classes represented in memory and also how they can be represented in C the same way.</div>
+					<a href="articles/IDA_interpreting_interfaces_in_C.html" class="article__readmore">Read More</a>
+				</div>
+			
+				<div class="article">
+					<div class="article__date">November 9, 2022</div>
+					<a class="article__name" href="articles/re_gettickcount.html">GetTickCount() implementation on Windows</a><br>
+					<div class="article__desc">Read about how the <i>GetTickCount()</i> function exposed by the Win32 api is implemented under the hood.</div>
+					<a href="articles/re_gettickcount.html" class="article__readmore">Read More</a>
+				</div>
+			</div>
 
-		<div class="article">
-			<div class="article__date">October 18, 2022</div>
-			<a class="article__name" href="articles/goldsrc_svc_parsing_architecture.html">GoldSrc SVC Parsing Architecture</a><br>
-			<div class="article__desc">Read about how the GoldSrc engine handles communication between client and server, how it receives data and how it is able to do this through a carefully defined protocol.</div>
-			<a href="articles/goldsrc_svc_parsing_architecture.html" class="article__readmore">Read More</a>
-		</div>
-
-		<div class="article">
-			<div class="article__date">November 23, 2022</div>
-			<a class="article__name" href="articles/goldsrc_connection_process.html">GoldSrc the server connection process</a><br>
-			<div class="article__desc">An in depth description of how connecting to a remote server works internally on the GoldSrc engine.</div>
-			<a href="articles/goldsrc_connection_process.html" class="article__readmore">Read More</a>
-		</div>
-
-		<div class="section_header">Reverse-engineering</div>
-
-		<div class="article">
-			<div class="article__date">November 2, 2022</div>
-			<a class="article__name" href="articles/IDA_weird_floating_point_comparison_techniques.html">IDA weird-floating point comparison
-				techniques</a><br>
-			<div class="article__desc">See how IDA Pro decompiles floating pointer comparisons between two values in a weird way and also why.</div>
-			<a href="articles/IDA_weird_floating_point_comparison_techniques.html" class="article__readmore">Read More</a>
-		</div>
-
-		<div class="article">
-			<div class="article__date">November 6, 2022</div>
-			<a class="article__name" href="articles/IDA_interpreting_interfaces_in_C.html">IDA Interperting C++ Interfaces in C</a><br>
-			<div class="article__desc">Read about how are C++ classes represented in memory and also how they can be represented in C the same way.</div>
-			<a href="articles/IDA_interpreting_interfaces_in_C.html" class="article__readmore">Read More</a>
-		</div>
-
-		<div class="article">
-			<div class="article__date">November 9, 2022</div>
-			<a class="article__name" href="articles/re_gettickcount.html">GetTickCount() implementation on Windows</a><br>
-			<div class="article__desc">Read about how the <i>GetTickCount()</i> function exposed by the Win32 api is implemented under the hood.</div>
-			<a href="articles/re_gettickcount.html" class="article__readmore">Read More</a>
 		</div>
 
 		<footer>
@@ -147,9 +169,11 @@
 							d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.051.051 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.594.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.034.034 0 0 0-.02-.019Zm-8.198 7.307c-.789 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612Zm5.316 0c-.788 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612Z" />
 					</svg></a>
 			</div>
-			<div class="footer__copyright">Copyright © 2022 oxiKKK</div>
+			<div class="footer__copyright"></div>
 		</footer>
 	</main>
+
+	<script src="postprocess.js"></script>
 
 	</body>
 
