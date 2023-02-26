@@ -1,0 +1,220 @@
+<html>
+
+<head>
+	<!-- Primary Meta Tags -->
+	<title>GoldSrc interface system</title>
+	<meta name="author" content="oxiKKK">
+	<meta name="title" content="GoldSrc interface system">
+	<meta name="description" content="Explanation on how the interface system works in the GoldSrc engine and how it enables inter-modular communication.">
+	<meta name="keywords" content="oxiKKK blog, oxiKKK, assembly, C, C++, GoldSrc, programming, low-level, operating systems, OS, hardware, reverse-engineering">
+
+	<!-- Open Graph / Facebook -->
+	<meta property="og:type" content="article">
+	<meta property="og:url" content="https://oxikkk.github.io/articles/goldsrc_interface_system">
+	<meta property="og:title" content="GoldSrc interface system">
+	<meta property="og:description" content="Explanation on how the interface system works in the GoldSrc engine and how it enables inter-modular communication.">
+	<meta property="og:site_name" content="oxiKKK.github.io" />
+
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+	<link rel="stylesheet" href="../style.css">
+</head>
+
+<body>
+	<nav>
+		<a class="nav__site_name nav__link" href="../">oxiKKK.github.io</a>
+		<a class="nav__link" href="https://github.com/oxiKKK">My GitHub page</a>
+	</nav>
+
+	<main class="app">
+		<div class="section_header">GoldSrc interface system</div>
+
+		<p>Interfaces can be quite handy if you have a more complex multi-modular process that wants to share API between each module, so that there aren't independent copies of the API inside each module. However, how to implement this in practice? Well, one way is through using <i>interfaces</i>.</p>
+
+		<h2>Definition of an C++ interface</h2>
+
+		<p>An interface is essentially an abstract class with a virtual destructor that has a separate class that implements it. A pure virtual class that cannot be instantiated, hence the class that implements it.</p>
+
+		<p>In GoldSrc, the topmost class that every interface must derive from is called <i>IBaseInterface</i>. It only contains the already mentioned virtual destructor. Using this, we can then get to the interface that derives from it, as we'll see later on.</p>
+
+		<p>An example implementation of an interface would look like this:</p>
+
+<code>// interface.h
+class IBaseInterface
+{
+public:
+    virtual ~IBaseInterface() {}
+};
+
+//...
+
+// IMyInterface.h (includes interface.h)
+class IMyInterface : public IBaseInterface
+{
+public:
+    virtual void routine1() = 0;
+    virtual void routine2() = 0;
+};
+
+// finally, MyInterface.cpp (in some module)
+// a class that implements the IMyInterface interface.
+class CMyInterface : public IMyInterface 
+{
+public:
+    virtual void routine1()
+    {
+        // some code
+    }
+    virtual void routine2()
+    {
+        // some code
+    }
+
+private:
+    // can have private members, code, etcetera. (unlike the interface)
+    // These members can be then accessed by the member functions without any problem.
+};
+</code>
+
+		<p>So, a brief explanation of what's going on here. The IBaseInterface class is needed in order to access this interface from other modules, we'll discuss this later. The IMyInterface itself is an abstract class (without an implementation), someone must implement it, hence the CMyInterface class.</p>
+
+		<p>Ok, so now we have an implemented interface but we said earlier that the main purpose of an interface is to be shared between modules, but how? Let's talk about that.</p>
+
+		<h2>Registering implemented interfaces</h2>
+
+		<p>If we talk about Valve games (GoldSrc, to be more exact), the key is to implement sort of a "interface manager" that will take care of the exposure of each interface, when defined. Let me explain.</p>
+
+		<p>Valve uses such class called <i>InterfaceReg</i> in order to <i>register</i> an interface, when defined. The declaration of it is rather simple. It contains a pointer to the base of the registered interface, its identifier (or a version), and a linked list of itself.</p>
+
+<code>// type of a function that is passed into the constructor of InterfaceReg when registering an interface.
+typedef IBaseInterface* (*InstantiateInterfaceFn)();
+
+class InterfaceReg
+{
+public:
+    // This gets called when a new interface implementation is exposed.
+    InterfaceReg(InstantiateInterfaceFn fn, const char *pName)
+    {
+        m_pName = pName;
+        m_CreateFn = fn;
+        m_pNext = s_pInterfaceRegs;
+        s_pInterfaceRegs = this;
+    }
+
+public:
+    InstantiateInterfaceFn m_CreateFn; // pointer to the base of the interface
+    const char             *m_pName;   // name, id, version...
+
+    InterfaceReg           *m_pNext;   // for the global list
+    static InterfaceReg    *s_pInterfaceRegs;
+};</code>
+
+		<p>Now, this registration class is located inside every module that exposes some interface, without the class instance per module, it simply would not work. It exists in order to keep track of which interfaces belong to current module, e.g. which are implemented inside current module.</p>
+
+		<p>Finally, if we go back to our <i>CMyInterface</i> implementation, there's one thing missing, and that is the actual exposure of the interface to the local registration manager. (InterfaceReg)</p>
+
+<code>// right after the CMyInterface class...
+
+EXPOSE_SINGLE_INTERFACE(CMyInterface, IMyInterface, "IMyInterface001");</code>
+
+		<p>Here's how's the macro defined.</p>
+		
+<code>// Use this to expose a singleton interface with a global variable you've created.
+#define EXPOSE_SINGLE_INTERFACE_GLOBALVAR(className, interfaceName, versionName, globalVarName) \
+static IBaseInterface* __Create##className##interfaceName##_interface() {return (IBaseInterface *)&globalVarName;}\
+static InterfaceReg __g_Create##className##interfaceName##_reg(__Create##className##interfaceName##_interface, versionName);
+
+// Use this to expose a singleton interface. This creates the global variable for you automatically.
+#define EXPOSE_SINGLE_INTERFACE(className, interfaceName, versionName) \
+static className __g_##className##_singleton;\
+EXPOSE_SINGLE_INTERFACE_GLOBALVAR(className, interfaceName, versionName, __g_##className##_singleton)
+</code>
+
+		<p>Now, I know what you are probably thinking. It's a big mess, but let me explain, it's actually simpler than it looks. So the main key to all of this is to expose the interface and especially somehow tell the InterfaceReg to register this interface. This is what this macro does, actually.</p>
+
+		<p>First, it needs to declare a global variable for the interface implementation instance, let's say <i>g_MyInterface</i> (by the way, this will call the class constructor even before DllMain gets called, after the dll is loaded, of course). Then it creates a function of return type IBaseInterface* that simply returns the global variable defined earlier. Finally, it creates an "instance" of the <i>InterfaceReg</i> object, with first parameter being the function, and second the interface version. It will eventually result into something like this:</p>
+
+<code>static CMyInterface g_MyInterface;
+static IBaseInterface* CMyInterfaceBase() { return (IBaseInterface*)&g_MyInterface; }
+static InterfaceReg g_RegisterInterface(CMyInterfaceBase, "IMyInterface001");</code>
+
+		<p>What does this piece of code do? Well, not only that it creates an instance of the interface implementation, but it also calls the constructor of the <i>InterfaceReg</i> class and adds the interface base as well as its version (or an id) string to the interface list.</p>
+
+		<p>Note that this is all happening right after the dlls is loaded. There's no need to have any thirdparty code involved. Because, as you probably know, static instantiated objects gets their constructors called even before DllMain is executed. This is done by the Windows loader. Anyways...</p>
+
+		<p>So now the interface exists inside the DLL's InterfaceReg's linked list. The next step is to enabling other modules to actually access this list and lookup the interface they want, depending on the version string (or an id, again).</p>
+
+		<h2>Exposing registered interfaces to other modules</h2>
+
+		<p>There's no other way really, than to export a function per dll, that would be then imported by other dlls. In this case, it's called <i>CreateInterface</i> (which is, by the way, kind of a silly name, because in reality, it just locates the interface, it doesn't "create" it). This function is implemented as follows:</p>
+
+<code>EXPORT_FUNCTION IBaseInterface *CreateInterface(const char *pName, int *pReturnCode)
+{
+    InterfaceReg *pCur;
+
+    // walk the registered list of interfaces by this module, and compare it with the one 
+    // that the callee requested. (callee being a distant dll that called this function)
+    for (pCur = InterfaceReg::s_pInterfaceRegs; pCur; pCur = pCur->m_pNext)
+    {
+        if (strcmp(pCur->m_pName, pName) == 0)
+        {
+            if (pReturnCode) // don't mind the return code, it isn't important
+            {
+                *pReturnCode = IFACE_OK;
+            }
+            // return the base address of the interface. In our case, &g_MyInterface.
+            return pCur->m_CreateFn(); 
+        }
+    }
+   
+    if (pReturnCode) // don't mind
+    {
+        *pReturnCode = IFACE_FAILED;
+    }
+    return NULL;
+}</code>
+
+		<p>As stated earlier, and as can be seen from the code, this function is exported by every dll that implements some interface. Client dlls then import this function and uses it to load interfaces that are normally inaccessible from their perspective for themselves.</p>
+
+		<p>So that's it. The magic of this is, that as stated earlier, that this avoids of having multiple copies of one class inside a process. When the process shares memory with client dlls, why not just use an interface instead? If dll1 would need to use CMyInterface, it would simple include the MyInterface.cpp. But if another dll would want to use it too, it would have to do the same, resulting in a copied instance of the same class. Plus, in some situations, it's necessary to to have a shared class between modules. Anyway... that's it, Thanks for reading :^)</p>
+
+		<footer>
+			<div class="footer__last_update" id="last_update_id"></div>
+			<div class="footer__icons">
+				<a href="https://www.youtube.com/c/OX666" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="red" class="bi bi-youtube"
+						viewBox="0 0 16 16">
+						<path
+							d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.007 2.007 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.007 2.007 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31.4 31.4 0 0 1 0 7.68v-.123c.002-.215.01-.958.064-1.778l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.007 2.007 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A99.788 99.788 0 0 1 7.858 2h.193zM6.4 5.209v4.818l4.157-2.408L6.4 5.209z" />
+					</svg></a>
+
+				<a href="https://github.com/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" class="bi bi-github"
+						viewBox="0 0 16 16">
+						<path
+							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+					</svg></a>
+				<a href="https://steamcommunity.com/id/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1b2838" class="bi bi-steam"
+						viewBox="0 0 16 16">
+						<path
+							d="M.329 10.333A8.01 8.01 0 0 0 7.99 16C12.414 16 16 12.418 16 8s-3.586-8-8.009-8A8.006 8.006 0 0 0 0 7.468l.003.006 4.304 1.769A2.198 2.198 0 0 1 5.62 8.88l1.96-2.844-.001-.04a3.046 3.046 0 0 1 3.042-3.043 3.046 3.046 0 0 1 3.042 3.043 3.047 3.047 0 0 1-3.111 3.044l-2.804 2a2.223 2.223 0 0 1-3.075 2.11 2.217 2.217 0 0 1-1.312-1.568L.33 10.333Z" />
+						<path
+							d="M4.868 12.683a1.715 1.715 0 0 0 1.318-3.165 1.705 1.705 0 0 0-1.263-.02l1.023.424a1.261 1.261 0 1 1-.97 2.33l-.99-.41a1.7 1.7 0 0 0 .882.84Zm3.726-6.687a2.03 2.03 0 0 0 2.027 2.029 2.03 2.03 0 0 0 2.027-2.029 2.03 2.03 0 0 0-2.027-2.027 2.03 2.03 0 0 0-2.027 2.027Zm2.03-1.527a1.524 1.524 0 1 1-.002 3.048 1.524 1.524 0 0 1 .002-3.048Z" />
+					</svg></a>
+				<a href="https://discordapp.com/users/363390198563864576/" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#404EED" class="bi bi-discord"
+						viewBox="0 0 16 16">
+						<path
+							d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.051.051 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.594.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.034.034 0 0 0-.02-.019Zm-8.198 7.307c-.789 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612Zm5.316 0c-.788 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612Z" />
+					</svg></a>
+			</div>
+			<div class="footer__copyright"></div>
+		</footer>
+	</main>
+	
+	<script src="../postprocess.js"></script>
+
+</body>
+
+</html>

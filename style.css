@@ -37,6 +37,7 @@ nav {
 .app {
 	margin: auto;
 	max-width: 50rem;
+	min-height: 100%;
 	padding: 1rem;
 	overflow: hidden;
 	word-wrap: break-word;
