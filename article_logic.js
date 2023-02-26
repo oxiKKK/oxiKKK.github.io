@@ -2,9 +2,9 @@
 window.addEventListener(
   "load",
   function () {
-    resolveArticleAge();
     collectArticles();
     displayArticles();
+    resolveArticleAge();
   },
   true
 );
@@ -31,6 +31,7 @@ function resolveArticleAge() {
 
     if (totalDays <= 31) {
       elm.textContent += " NEW!";
+      elm.classList.add("rainbow-text");
     }
   }
 }

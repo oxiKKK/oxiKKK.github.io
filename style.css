@@ -12,6 +12,11 @@ a:hover {
 	color: cornflowerblue;
 }
 
+.rainbow-text {
+	font-weight: bold;
+	font-size: 0.75rem;
+}
+
 nav {
 	display: flex;
 	position: sticky;

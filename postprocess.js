@@ -31,7 +31,6 @@ const monthNames = [
   "December",
 ];
 
-
 // Returns formatted day (1st, 5th, 3rd, ...)
 function getFormattedDay(day) {
   let modDay = day % 10;
