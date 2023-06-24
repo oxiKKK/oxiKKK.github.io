@@ -64,7 +64,6 @@ function collectArticles() {
         titleStr: art.querySelector('.article__name').innerHTML,
         dateStr: art.querySelector('.article__date').innerHTML,
         descriptionStr: art.querySelector('.article__desc').innerHTML,
-        sectionStr: art.querySelector('.article__desc').innerHTML,
         pathTo: art.querySelector('.article__name').href,
       };
       articles.push(currentArticle);
@@ -81,12 +80,18 @@ function collectArticles() {
   });
 
   // Sort by date
+  //console.log("before:");
+  //console.log(sortedSections);
   sortedSections.forEach(function (sec) {
     sec.articles.sort((a, b) => {
-      return -1; // the newer one'll be first
+      const asDate1 = new Date(a.dateStr);
+      const asDate2 = new Date(b.dateStr);
+      //console.log(`${a.titleStr}: ${asDate1} > ${asDate2}`);
+      return asDate2 - asDate1; // the newer one'll be first
     });
   })
 
+  //console.log("after:");
   //console.log(sortedSections);
 }
 

@@ -1,0 +1,402 @@
+<html>
+
+<head>
+	<!-- Primary Meta Tags -->
+	<title>GoldSrc engine frame</title>
+	<meta name="author" content="oxiKKK">
+	<meta name="title" content="GoldSrc engine frame">
+	<meta name="description" content="Walkthrough of the GoldSrc engine frame, what happens, which events occur, etc.">
+	<meta name="keywords" content="oxiKKK blog, oxiKKK, assembly, C, C++, GoldSrc, programming, low-level, operating systems, OS, hardware, reverse-engineering">
+
+	<!-- Open Graph / Facebook -->
+	<meta property="og:type" content="article">
+	<meta property="og:url" content="https://oxikkk.github.io/articles/goldsrc_engine_frame">
+	<meta property="og:title" content="GoldSrc engine frame">
+	<meta property="og:description" content="Walkthrough of the GoldSrc engine frame, what happens, which events occur, etc.">
+	<meta property="og:site_name" content="oxiKKK.github.io" />
+
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+	<link rel="stylesheet" href="../style.css">
+</head>
+
+<body>
+	<nav>
+		<a class="nav__site_name nav__link" href="../">oxiKKK.github.io</a>
+		<a class="nav__link" href="https://github.com/oxiKKK">My GitHub page</a>
+	</nav>
+
+	<main class="app">
+		<div class="section_header">GoldSrc engine frame</div>
+
+		<p>Hi. In this article I'd like to discuss some of the internals of the GoldSrc engine frame. What do I mean by that? Well, as you may already know, games in general tend to define a set of subroutines or instructions or steps or whatever you want to call it, and run these instructions again and again, as fast as possible, in order for the game to function properly. Set of these instructions or "steps" is called a frame. A game frame.</p>
+		
+		<p>Why a frame tho? Well, probably because inside of this "frame", there's some kind of graphic or rendering logic that renders the world, effects, entities, etc. Hence, every "frame" you get a new visual frame that is updated from the last one.</p>
+
+		<p>But a game frame usually doesn't only contain the rendering. It may also contain sound update, key/mouse event dispatcher, entity update, networking, etc. Let's now look into GoldSrc engine frame, what happens here, in detail.</p>
+
+		<h2>Frame time, FPS, and frame count</h2>
+
+		<p>Before we dive into details, let's first discuss some topics that are connected to a game frame. Such as <b>frametime</b> or <b>fps - frames per second</b>. The second one is pretty much straight forward, FPS defines how many frames we are able to execute on our CPU/GPU per single second. However, what about <b>frametime</b>? Well, frame time, unsurprisingly is an inverse of FPS, and FPS is an inverse of frametime.</p>
+		
+		<p>But why? Frametime could be a synonym for a period, and FPS for a frequency. Hopefully you know these two. 😛 Also, very important thing. Frame time, as the name suggests, can tell us about how long the frame took to execute on our CPU/GPU. This is good for performance measurements as well as calculating the FPS, as said before.</p>
+
+<code>double fps = 1.0 / frametime;
+double frametime = 1.0 / fps;
+
+//
+// let's say this is our frame
+//
+
+double start_time = get_time_seconds(); // mark the start of the frame
+
+// ...
+// run the frame (graphics, sound, networking, etc..)
+
+// now we have executed everything inside our frame, measure how long did it take.
+
+double end_time = get_time_seconds();
+double frametime = end_time - start_time;
+
+// and since frametime = 1 / fps, for 100 fps, we'd have 0.01 seconds long frame (1 / 100), or a 10ms long frame. 1ms'd be for 1k fps.
+</code>
+
+		<p>For frame count, it's pretty simple. It's just a variable that increments each frame.</p>
+
+		<h2>Architecture of engine frame</h2>
+
+		<p>After initialization, the first frame can take place. The whole magic lies inside the function called <i>RunListenServer</i>, which first does the engine initialization and then finally goes to a while(1) loop to repeatedly execute "frame" code. Let's take a look at the function.</p>
+
+<code>RunListenServer
+{
+    // 1. initialization (if fail, quit game)
+
+    // 2. the "endless" while loop, aka the engine frame. Goes like this:
+    //
+    // while (1)
+    // {
+    //   engine frame code
+    // }
+    //
+    // Note that this while loop isn't actually endless. It ends when the game is closed, or when a fatal error is thrown, or et cetera.
+
+    // 3. shutdown code - after the while loop breaks, shutdown code is called.
+
+    // 4. game quits
+}
+</code>
+
+		<p>There are three main "frame" functions that are called inside the while loop. The main one is <b>CEngine::Frame()</b> function that then calls <b>Host_Frame()</b> function that then finally calls <b>_Host_Frame()</b> function that calls all of the engine subroutines that handles sound, graphics, etc.</p>
+
+<code>CEngine::Frame() -> Host_Frame() -> _Host_Frame() -> (SV_Frame, Host_UpdateScreen, CL_ReadPackets, ...)
+</code>
+
+		<p>So now when we know roughly what's the architecture or the engine frame, let's take a closer look at individual functions. Starting from the topmost function - RunListenServer.</p>
+
+<h2>RunListenServer</h2>
+
+		<p>As stated before, this function is kind of the "entry point" for the engine that first does the initialization, then runs the main while loop, and then the shutdown code. Let's take a closer look at the while loop.</p>
+
+<code>while (1)
+{
+    // pump messages - this function is responsible for
+    // dispatching all of the key/mouse inputs, window events, etc.
+    game->SleepUntilInput(NULL);
+    
+    // look if in the previous engine frame someone requested to end the while loop.
+    if (eng->GetQuitting() != IEngine::QUIT_NOTQUITTING)
+    {
+        if (eng->GetQuitting() != IEngine::QUIT_TODESKTOP)
+        {
+            result = ENGINE_RUN_CHANGED_VIDEOMODE; // restart
+        }
+        else
+        {
+            result = ENGINE_RUN_QUITTING; // full quit
+        }
+        break; // exit the "endless" while loop
+    }
+    
+    // run engine frame
+    eng->Frame();
+}
+</code>
+
+		<p>So this is the topmost level of the engine frame. This piece of code is called as fast as possible. Also, the result code is for the launcher, so that it can change the videomode or quit the game, etc. Let's take a look into the <b>eng->Frame()</b> function, which is essentially just <b>CEngine::Frame()</b> that we talked about earlier.</p>
+
+		<h2>CEngine::Frame</h2>
+
+		<p>This function finally calls <i>Host_Frame</i> routine, but it also does other things, such as computing the "real" frametime. We'll talk about why it's "real" later.</p>
+
+		<p>For example, one thing that this function does is that it enforces lower framerate when the game window is not focused or when it is minimized. This is in order to not lose performance on your PC even when you're not really in the game. For example, when the game window is unfocused, the framerate is clamped to 50 (frametime 20 ms -> 1 / 50).</p>
+
+		<p>Most importantly, this function calls <i>Host_Frame</i> function, which is located deeply inside the engine core. To be more precise, inside host.c source file. And this is where all of the fun stuff happens.</p>
+
+		<h2>Host_Frame</h2>
+
+		<p>This function is pretty much straight forward. It does some measurements for code profiling (<i>host_profile</i> cvar) and then it finally calls the main engine frame function, <b>_Host_Frame()</b> that does all of the engine-related stuff.</p>
+
+		<h2>_Host_Frame</h2>
+
+		<p>Inside this function, all of the engine-related-stuff happens. It is also kinda big, and was changed over the years and over many engine builds. There's around 34 major functions being called. So let's look at some of them.</p>
+
+		<p>But first, let's divide this function into sections, and then analyze each section.</p>
+
+		<img src="../assets/goldsrc_frame_host_frame.svg" style="min-width: 30%;"></img>
+		
+		<h3>1. DInput event handling</h3>
+
+		<p>DInput is no longer used, after 2013 when SDL was introduced to the engine along with cross-platform support, DInput became obsolete. However, the code is still present in the 8684 binary, but is unused.</p>
+
+		<p>The function that is called inside _Host_Frame() is called <b>DInput_HandleEvents()</b> and it basically serves as a dispatcher for DInput events such as mouse movement, and/or key/mouse input handling.</p>
+
+		<p>Also an important thing to note is that this function is only present in Windows builds, it is not present inside Linux or OSX binaries.</p>
+
+		<h3>2. Time filtering</h3>
+
+		<p>The function responsible is called <b>Host_FilterTime</b> and it basically tells whenever we should run the frame or not, based on settings. These settings are for example <i>fps_max</i>. As a parameter it takes the "real" frame time, and determines whenever it's time to run the frame or not, based on capped <i>fps_max</i> value. This is to prevent running the engine, when you set fps_max to 20, as fast as possible, every time, because you wouldn't get your 20 fps, but rather e.g. 500 or so, depending on your hardware.</p>
+
+		<p>This is where we can distinguish the "real" and "engine" frametime. The "real" frametime isn't compensated by the fps_max value, and rather is the "fastest" possible frametime that your hardware can handle. On the other hand, the "engine" frametime is capped by fps_max. And this frametime is actually used to calculated the engine fps value, which is then shown by the <i>cl_showfps</i> utility.</p>
+
+<code>// cap the frame time at set value
+if (!Host_FilterTime(time))
+{
+    return; // don't continue the engine frame and rather wait, until it's time.
+}
+</code>
+
+		<p>Note that the function also works with other cvars such as <i>fps_override</i> or <i>gl_vsync</i> and it also computes <i>host_frametime</i> variable which represents the frame time of the engine and is later used throughout the code.</p>
+
+		<h3>3. Beginning of the frame</h3>
+
+		<p>Let's now go through what is happening at the beginning of the frame. Starting with function called <i>SystemWrapper_RunFrame</i>. This is part of the SystemWrapper interface, and I'm not entirely sure what is it's purpose, but I think that it's unused in 8684 builds..</p>
+
+		<p>Then we have a call to one of the functions from <i>modfuncs_t</i> structure called <i>m_pfnFrameBegin</i>. This is essentially part of the VAC1 security module interface that is not used now and was used around ~2003 before it became obsolete and unsed.</p>
+
+		<p>Following we have several functions that goes like this:</p>
+
+<code>// compute rolling fps for the cl_showfps utility.
+// Uses EMA (Exponential moving average) algorithm to do so:
+// https://en.wikipedia.org/wiki/Moving_average
+Host_ComputeFPS(host_frametime);
+
+R_SetStackBase();      // sw renderer relared, does nothing in hw engine
+CL_CheckClientState(); // check if the client is fully connected to a server
+Cbuf_Execute();        // execute commands that were queued up
+
+// calls HUD_UpdateClientData from client dll and writes an update to the demo buffer, if recording.
+ClientDLL_UpdateClientData();
+</code>
+
+		<h3>4. Serverside operations</h3>
+
+		<p>This is where it gets more interesting. So, the server-side code of the engine frame is pretty simple compared to the client-side. There are only three functions called within this section.</p>
+
+		<p>First of them being <i>CL_Move()</i>. As you may know this function is responsible for sending client-side movement packets to the server. But why run it as a server and send data to the server? That makes little sense! Well, let me explain.</p>
+
+		<p>When you're connected to a public server and you are not hosting the server, the CL_Move function won't get called here. It is only called for the hosting player, because he has to move, too! So even when theoretically he is the server itself, he has to run this function, to send movement data to himself, to acknowledge his movement - it's the same as if you would run a singleplayer game.</p>
+
+<code>// run the client-side movement for the host (server), if we're the host.
+if (sv.active) 
+{
+    CL_Move();
+}
+</code>
+
+		<p>So there goes the "client-side" movement code for the server. Kinda hilarious to think about, but in the end, it makes sense.</p>
+
+		<p>Following we have the server-side frame function, <b>SV_Frame()</b>. Now, this function itself is very big, and I will not discuss it in detail, because it would take me a loot of time to do so. 😉 But essentially, it runs the server stuff, and other things. That is a really good definition, isn't it? I also haven't studied the server-side code as much as the client-side, so I would not do as good of a job as explaining client-side code, so let's just move on.</p>
+
+		<p>The final function inside this section is called <i>SV_CheckForRcon()</i>, and what it does is that it handles rcon packets. These may contain things such as challenges and rcons. a RCon, as you may know, stands for <i>Remote Control</i>, and basically what it allows us to do is to control the server remotely - that is, if you know the password.</p>
+
+		<p>RCons are used by dedicated servers, and they basically allows commands to be executed on the server-side from a remote position, as said before.</p>
+
+		<h3>5. Clientside operations</h3>
+
+		<p>This is where the fun part begins. I say fun part, because the majority of the functions or "stuff" is called/happens here, on the client-side.</p>
+
+		<p>So the first operation is informing the client dll about new frame. We do this using the <b>ClientDLL_Frame()</b> function. This just essentially calls the client dll function that then does its own thing.</p>
+
+		<h4>CL_ReadPackets</h4>
+
+		<p>Following we have <b>CL_ReadPackets()</b>. Now, this is a big one. Basically this function is responsible for all of the client-side networking. That is, parsing out all of the messages that came from the server earlier this frame (if host) or basically sometime earlier. I have described SVC (server->client) architecture <a href="goldsrc_svc_parsing_architecture.html">here</a>. So you can check it out if you want.</p>
+
+		<p>The function also takes care of resource downloading, updating the progress bar, and processing the downloaded file. This function on its own is far more complex, but I don't want to go into too much details right now, because this article isn't about client-side networking or SVC parsing.</p>
+
+		<h4>CL_RedoPrediction</h4>
+
+		<p>Moving up we have <b>CL_RedoPrediction()</b>. The initial client-side prediction is done inside <i>CL_Move</i> however, while parsing server messages inside <i>CL_ReadPackets</i>, if we receive another packet after parsing data from the previous one, we have to update the prediction data. Let me explain.</p>
+
+		<p>Before calling <i>CL_ReadPackets</i> we save the current incoming sequence number (basically the most up-to-date received packet) and after that we run the <i>CL_ReadPackets</i> function. Inside of this function, <i>Netchan_Process</i> is called, which essentially increases the sequence number (that is if we receive any new packets from the server).</p>
+
+		<p>So, if we receive any new packet, we re-run the prediction code, hence the function name - CL_<b>Redo</b>Prediction. If we don't receive any new packets, no more prediction will be done this frame, and everything will be done the next frame.</p>
+
+<code>CL_SetLastUpdate(); // Sets the last sequence index before we read the data
+CL_ReadPackets();   // Read all data that we've received from the server
+
+// If we haven't predicted/simulated the player (multiplayer with prediction enabled and not a listen server with zero frame lag, then go ahead and predict now.
+CL_RedoPrediction();
+</code>
+
+		<p>As said before, the sequence counter value is saved inside CL_SetLastUpdate:</p>
+
+<code>void CL_SetLastUpdate()
+{
+    g_lastupdate_sequence = cls.netchan.incoming_sequence;
+}</code>
+
+		<p>And then after executing CL_ReadPackets, inside CL_RedoPrediction we have:</p>
+
+<code>void CL_RedoPrediction()
+{
+    // We don't have to predict since we didn't get any new packets
+    if (g_lastupdate_sequence == cls.netchan.incoming_sequence)
+    {
+      return;
+    }
+
+    // run the prediction again, we have received an update
+    CL_PredictMove(TRUE);
+    CL_CheckPredictionError();
+}</code>
+
+		<h4>CL_EmitEntities</h4>
+
+		<p>The next is entity creation, event firing, and stuff such as linking entity updates or new entity "states" we got from the server with already existing entities. Basically updating the current entity list with newest entity updates. This applies both for regular entities as well as players.</p>
+
+		<p>This involves functions such as:</p>
+
+<code>CL_LinkPlayers(); // link player entities with up to date entity update
+CL_LinkPacketEntities(); // link other entities
+
+CL_TempEntUpdate(); // update temporary entities such as beams
+
+CL_FireEvents(); // execute all events
+</code>
+
+		<h4>CL_CheckForResend</h4>
+
+		<p>This function doesn't do anything important, it is called only during the initial connection and it basically setups the the initial connection between client and the server and if it fails to do so, it tries several times, as defined by <i>MAX_CONNECT_RETRIES</i> macro, i.e. 4x in vanilla GoldSrc before giving up on the connection.</p>
+
+		<p>You can see when the function fails to establish the connection for the first, second, or third time, because it displays a string inside the console, as well as changes the progress bar status text.</p>
+
+<code>Con_Printf("Retrying %s...\n", servername);
+
+// and on the initial attempt:
+Con_Printf("Connecting to %s...\n", servername);
+</code>
+
+		<h4>CL_HTTPUpdate</h4>
+
+		<p>Oh boy, and here comes the imfamous DLM aka <b>TheDownloadManager</b>. This function runs the update code for the DLM. And long story short, the code just updates the progress bar and eventually updates all active requests (for file download) that are active at the moment.</p>
+
+		<p>The download manager went through a lot of changes itself. Before the 2013 build, it was different that it is now. It wasn't using the <i>CMultipleCallResults</i> and steamAPI in order to process HTTP requests via <i>steamclient.dll</i>. The entire code of the old DLM can be found inside the 2007 leak, and the newest DLM was partly inspired by the csgo leak.</p>
+
+		<p>So in general, the function just updates resources that are queued for download, updates the progress bar and other things like that. Note that there can (in the vanilla GoldSrc) be 5 resources being "downloaded" at the same time.</p>
+
+		<h4>Steam_ClientRunFrame</h4>
+
+		<p>Next up we have steam. This eventually calls into <i>steam_api.dll</i>, and the only thing that it does is that it runs all the queued callbacks by the DLM. Callbacks are registered by the <i>CMultipleCallResults</i> inside the DLM, and when they're processed by the steamclient.dll, they're ran by this function, or to be more precise, by the <i>CCallbackMgr::RunCallbacks</i> function from <i>steam_api.dll</i>.</p>
+
+		<p>Note that steam_api.dll is just a wrapper over steamclient.dll, and its main purpose is to handle callbacks such as these from the DLM and to deal with communication with steam.</p>
+
+		<h4>CL_MoveSpectatorCamera</h4>
+
+		<p>This function is pretty much straight forward, it just runs the movement code for client-side spectator mode, when on.</p>
+
+		<h4>Bonus: IGA_Frame (??)</h4>
+
+		<p>This function is disabled in 8684 however, the call into it was still there in the 4554 version of the game. It is the frame function for the <b>InGameAdvertisements</b> system, that is now obsolete. It's basically code responsible for rendering Valve's 2007 OrangeBox advertisements all over the place. For example, you may remember seeing one of the advertisements for yourself on famous maps such as de_dust2, and others. Or inside the scoreboard or perhaps when spectating.</p>
+
+		<p>Yes, this code is obsolete and was removed later on from the game completely. However, the code can be still seen inside the 4554 binary, and you can inspect it using IDA if you want 😉😀. However, the whole advertisements code it's kinda big.. so, you have been warned..</p>
+
+		<h3>6. Renderer operations</h3>
+
+		<p>And after a lot of client-side operations we finally have rendering. Now, there's only one function responsible for the entire game rendering, and that is <b>Host_UpdateScreen()</b>. Yes, everything is packed into this function. That includes world, decals, players, beams, entities, as well as VGUI, HUD, and more.</p>
+
+		<p>The function then calls <b>SCR_UpdateScreen</b>, which is basically the function that does all of the stuff I just said. Also, this function is very familiar to the one in original Quake 1, even the name remained the same if I remember correctly..</p>
+
+		<p>Also, a little bonus. Some cheats in CS 1.6 use an exploit which basically allows you to have your fps tripled or even quadrupled, if you run this function like each second frame or so. This only confirms that this function is really a big bottleneck inside the engine. Well, and it's not surprising after all, because it's literally responsible for rendering every character of text or every texture on the map, etc. So it's kinda expectable.</p>
+
+		<h3>7. Audio operations</h3>
+
+		<p>The function responsible is called <b>Host_UpdateSounds</b>. The function itself then calls <b>S_Update</b>, which takes care over the whole sound update. Note that the sound code contains apart from DSound on Windows or some portable SDL sound code on Linux also A3D sound code as well as EAX sound code. This (now disabled) code is under two macros: <i>__USEA3D</i> and <i>_ADD_EAX_</i>, both of which are now disabled in 8684, and are only available on windows. However, the code is still inside there, only disabled.</p>
+
+		<p>This can be fore example seen here, inside <i>S_MixChannelsToPaintbuffer</i> function:</p>
+
+<code>#if defined(_ADD_EAX_)
+if (EAX_format_set)
+{
+    S_EAXPaintChannelFrom8(ch, sc, sampleCount);
+}
+else
+#endif // _ADD_EAX_
+{
+    if (ppaintbuf == paintbuffer)
+    {
+        SND_PaintChannelFrom8(ch, sc, sampleCount);
+    }
+#if defined(__USEA3D)
+    else
+    {
+        SND_PaintChannelFrom8toDry(ch, sc, sampleCount);
+    }
+#endif // __USEA3D
+}</code>
+
+		<p>But anyway, the sound update code just paints the dma buffer and transfers it over to the hardware device.</p>
+
+		<h3>8. End of the frame & Profiling</h3>
+
+		<p>And here we are! At the end of the frame.. What a journey. At the end, there're only profiling operations, measurements on how long does each part of the frame took, etc. For example, the cvar <i>host_speeds</i> takes place in this code region.</p>
+
+		<p>Apart from profiling, the host_framecount is increased, and the client-side clock is adjusted. The client clock is used to keep track of time synchronization between client and server.</p>
+
+		<h3>Conclusion</h3>
+
+		<p>And so here we are, that's it. Quite a lot of operations, ain't it? Well, that's what it takes in order to run a fully functional multiplayer game (kind of). And take into a count that this is a game based on Quake 1 - a game that was released in 1996. While heavily modified, GoldSrc engine is very similar to Q1, and yet, it's still decently complicated I'd say.</p>
+
+		<p>Now, what about modern games? From these days? Well, that's whole another level. Just so you can think about it. GoldSrc engine itself (both hw.dll and sw.dll - not including dedicated server code) is about 180,000 lines of code in total. That is, of course, not including other modules. And this engine is almost 30 years old now! The new S2 engine must have millions of lines of code then! And yet, it really does... Insane, yes.</p>
+
+		<p>Anyway, thanks for reading!</p>
+
+		<footer>
+			<div class="footer__last_update" id="last_update_id"></div>
+			<div class="footer__icons">
+				<a href="https://www.youtube.com/c/OX666" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="red" class="bi bi-youtube"
+						viewBox="0 0 16 16">
+						<path
+							d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.007 2.007 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.007 2.007 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31.4 31.4 0 0 1 0 7.68v-.123c.002-.215.01-.958.064-1.778l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.007 2.007 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A99.788 99.788 0 0 1 7.858 2h.193zM6.4 5.209v4.818l4.157-2.408L6.4 5.209z" />
+					</svg></a>
+
+				<a href="https://github.com/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" class="bi bi-github"
+						viewBox="0 0 16 16">
+						<path
+							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+					</svg></a>
+				<a href="https://steamcommunity.com/id/oxiKKK" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#1b2838" class="bi bi-steam"
+						viewBox="0 0 16 16">
+						<path
+							d="M.329 10.333A8.01 8.01 0 0 0 7.99 16C12.414 16 16 12.418 16 8s-3.586-8-8.009-8A8.006 8.006 0 0 0 0 7.468l.003.006 4.304 1.769A2.198 2.198 0 0 1 5.62 8.88l1.96-2.844-.001-.04a3.046 3.046 0 0 1 3.042-3.043 3.046 3.046 0 0 1 3.042 3.043 3.047 3.047 0 0 1-3.111 3.044l-2.804 2a2.223 2.223 0 0 1-3.075 2.11 2.217 2.217 0 0 1-1.312-1.568L.33 10.333Z" />
+						<path
+							d="M4.868 12.683a1.715 1.715 0 0 0 1.318-3.165 1.705 1.705 0 0 0-1.263-.02l1.023.424a1.261 1.261 0 1 1-.97 2.33l-.99-.41a1.7 1.7 0 0 0 .882.84Zm3.726-6.687a2.03 2.03 0 0 0 2.027 2.029 2.03 2.03 0 0 0 2.027-2.029 2.03 2.03 0 0 0-2.027-2.027 2.03 2.03 0 0 0-2.027 2.027Zm2.03-1.527a1.524 1.524 0 1 1-.002 3.048 1.524 1.524 0 0 1 .002-3.048Z" />
+					</svg></a>
+				<a href="https://discordapp.com/users/363390198563864576/" style="padding: 3px;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#404EED" class="bi bi-discord"
+						viewBox="0 0 16 16">
+						<path
+							d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.051.051 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.594.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.034.034 0 0 0-.02-.019Zm-8.198 7.307c-.789 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612Zm5.316 0c-.788 0-1.438-.724-1.438-1.612 0-.889.637-1.613 1.438-1.613.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612Z" />
+					</svg></a>
+			</div>
+			<div class="footer__copyright"></div>
+		</footer>
+	</main>
+	
+	<script src="../postprocess.js"></script>
+
+</body>
+
+</html>

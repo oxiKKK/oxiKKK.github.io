@@ -1,1 +1,7 @@
-- Implementation of GetTickCount()
+X - GoldSrc engine frame (what does occur, which events happen, what is the code flow)
+- GoldSrc delta.cpp code (study the code and write how it works and what is its purpose)
+- The disabled a3d code inside steam version of GoldSrc.
+- GoldSrc initialization process.
+- oxWARE, free and opensource, what's the motivation?
+- Making the 8684 build non-steam, how?
+- 
